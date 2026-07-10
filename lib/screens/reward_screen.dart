@@ -1,0 +1,441 @@
+import 'package:flutter/material.dart';
+
+import '../models/level_reward.dart';
+import '../services/save_manager.dart';
+import '../widgets/confetti_overlay.dart';
+import '../widgets/pixel_button.dart';
+
+/// Post-level results screen with stars, stats, and environmental impact.
+class RewardScreen extends StatelessWidget {
+  const RewardScreen({
+    super.key,
+    required this.result,
+  });
+
+  final LevelRewardResult result;
+
+  static const Color _panel = Color(0xF00E0E1A);
+  static const Color _border = Color(0xFF2B2B3A);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Image.asset(
+            'assets/images/png/park_trash_bg.png',
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.none,
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[Color(0xCC0E1A12), Color(0xE6070B08)],
+              ),
+            ),
+          ),
+          const Positioned.fill(child: ConfettiOverlay()),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final bool compact = constraints.maxHeight < 420;
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 12 : 24,
+                      vertical: compact ? 8 : 16,
+                    ),
+                    child: _RewardCard(result: result, compact: compact),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardCard extends StatelessWidget {
+  const _RewardCard({
+    required this.result,
+    required this.compact,
+  });
+
+  final LevelRewardResult result;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final double titleSize = compact ? 40 : 52;
+    final double sectionSize = compact ? 20 : 24;
+    final double statLabelSize = compact ? 16 : 18;
+    final double statValueSize = compact ? 24 : 30;
+
+    return Container(
+      constraints: BoxConstraints(
+        maxWidth: compact ? 520 : 640,
+      ),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 16 : 28,
+        compact ? 14 : 22,
+        compact ? 16 : 28,
+        compact ? 16 : 24,
+      ),
+      decoration: BoxDecoration(
+        color: RewardScreen._panel,
+        border: Border.all(color: RewardScreen._border, width: compact ? 4 : 5),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(color: Color(0xAA000000), offset: Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            result.levelTitle,
+            style: TextStyle(
+              fontFamily: 'Jersey10',
+              fontSize: titleSize,
+              height: 1,
+              color: Colors.white,
+              shadows: const <Shadow>[
+                Shadow(color: RewardScreen._border, offset: Offset(3, 3)),
+              ],
+            ),
+          ),
+          SizedBox(height: compact ? 8 : 12),
+          _StarRow(stars: result.stars, compact: compact),
+          SizedBox(height: compact ? 12 : 18),
+          compact
+              ? _CompactStats(
+                  result: result,
+                  labelSize: statLabelSize,
+                  valueSize: statValueSize,
+                )
+              : _WideStats(
+                  result: result,
+                  labelSize: statLabelSize,
+                  valueSize: statValueSize,
+                ),
+          SizedBox(height: compact ? 12 : 18),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Environmental Impact',
+              style: TextStyle(
+                fontFamily: 'Jersey10',
+                fontSize: sectionSize,
+                height: 1,
+                color: const Color(0xFF9FE6A0),
+              ),
+            ),
+          ),
+          SizedBox(height: compact ? 6 : 10),
+          ...result.environmentalImpact.map(
+            (EnvironmentalImpact impact) => _ImpactRow(
+              impact: impact,
+              compact: compact,
+            ),
+          ),
+          SizedBox(height: compact ? 14 : 20),
+          Center(
+            child: PixelButton(
+              label: 'Continue',
+              icon: Icons.arrow_forward,
+              color: const Color(0xFF4CAF50),
+              width: null,
+              compact: compact,
+              onPressed: () async {
+                await SaveManager.instance.completeParkLevel1(
+                  coinsEarned: result.coinsEarned,
+                );
+                if (context.mounted) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StarRow extends StatelessWidget {
+  const _StarRow({
+    required this.stars,
+    required this.compact,
+  });
+
+  final int stars;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final double size = compact ? 36 : 48;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List<Widget>.generate(3, (int index) {
+        final bool filled = index < stars;
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
+          child: Text(
+            filled ? '⭐' : '☆',
+            style: TextStyle(fontSize: size, height: 1),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _WideStats extends StatelessWidget {
+  const _WideStats({
+    required this.result,
+    required this.labelSize,
+    required this.valueSize,
+  });
+
+  final LevelRewardResult result;
+  final double labelSize;
+  final double valueSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: _StatTile(
+            label: 'Coins Earned',
+            value: '${result.coinsEarned}',
+            icon: Icons.monetization_on,
+            accent: const Color(0xFFFFC107),
+            labelSize: labelSize,
+            valueSize: valueSize,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatTile(
+            label: 'Score',
+            value: '${result.score}',
+            icon: Icons.grade,
+            accent: const Color(0xFFFFCA28),
+            labelSize: labelSize,
+            valueSize: valueSize,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatTile(
+            label: 'Correct Answers',
+            value: '${result.correctAnswers}',
+            icon: Icons.check_circle,
+            accent: const Color(0xFF66BB6A),
+            labelSize: labelSize,
+            valueSize: valueSize,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _StatTile(
+            label: 'Mistakes',
+            value: '${result.mistakes}',
+            icon: Icons.close,
+            accent: const Color(0xFFEF5350),
+            labelSize: labelSize,
+            valueSize: valueSize,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CompactStats extends StatelessWidget {
+  const _CompactStats({
+    required this.result,
+    required this.labelSize,
+    required this.valueSize,
+  });
+
+  final LevelRewardResult result;
+  final double labelSize;
+  final double valueSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _StatTile(
+                label: 'Coins Earned',
+                value: '${result.coinsEarned}',
+                icon: Icons.monetization_on,
+                accent: const Color(0xFFFFC107),
+                labelSize: labelSize,
+                valueSize: valueSize,
+                compact: true,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatTile(
+                label: 'Score',
+                value: '${result.score}',
+                icon: Icons.grade,
+                accent: const Color(0xFFFFCA28),
+                labelSize: labelSize,
+                valueSize: valueSize,
+                compact: true,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _StatTile(
+                label: 'Correct Answers',
+                value: '${result.correctAnswers}',
+                icon: Icons.check_circle,
+                accent: const Color(0xFF66BB6A),
+                labelSize: labelSize,
+                valueSize: valueSize,
+                compact: true,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatTile(
+                label: 'Mistakes',
+                value: '${result.mistakes}',
+                icon: Icons.close,
+                accent: const Color(0xFFEF5350),
+                labelSize: labelSize,
+                valueSize: valueSize,
+                compact: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.accent,
+    required this.labelSize,
+    required this.valueSize,
+    this.compact = false,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color accent;
+  final double labelSize;
+  final double valueSize;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 6 : 10,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161622),
+        border: Border.all(color: RewardScreen._border, width: 3),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, color: accent, size: compact ? 18 : 22),
+          SizedBox(height: compact ? 2 : 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Jersey10',
+              fontSize: labelSize,
+              height: 1,
+              color: const Color(0xFFB0BEC5),
+            ),
+          ),
+          SizedBox(height: compact ? 2 : 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'Jersey10',
+              fontSize: valueSize,
+              height: 1,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImpactRow extends StatelessWidget {
+  const _ImpactRow({
+    required this.impact,
+    required this.compact,
+  });
+
+  final EnvironmentalImpact impact;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final String kgText = impact.kg == impact.kg.roundToDouble()
+        ? '+${impact.kg.toInt()} kg'
+        : '+${impact.kg.toStringAsFixed(1)} kg';
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: compact ? 4 : 6),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              impact.label,
+              style: TextStyle(
+                fontFamily: 'Jersey10',
+                fontSize: compact ? 20 : 24,
+                height: 1,
+                color: const Color(0xFFDCE6DC),
+              ),
+            ),
+          ),
+          Text(
+            kgText,
+            style: TextStyle(
+              fontFamily: 'Jersey10',
+              fontSize: compact ? 20 : 24,
+              height: 1,
+              color: const Color(0xFF9FE6A0),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

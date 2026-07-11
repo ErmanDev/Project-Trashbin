@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../models/game_progress.dart';
 import '../models/level_reward.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/pixel_button.dart';
+import 'park_fully_restored_screen.dart';
+import 'school_fully_restored_screen.dart';
 
 /// Post-level results screen with stars, stats, and environmental impact.
 class RewardScreen extends StatelessWidget {
@@ -24,7 +27,17 @@ class RewardScreen extends StatelessWidget {
         fit: StackFit.expand,
         children: <Widget>[
           Image.asset(
-            'assets/images/png/park_trash_bg.png',
+            result.locationId == GameProgress.neighborhoodLocationId
+                ? (result.levelNumber >= 6
+                    ? GameProgress.neighborhoodCleanBg
+                    : GameProgress.neighborhoodTrashBg)
+                : result.locationId == GameProgress.schoolLocationId
+                    ? (result.levelNumber >= 4
+                        ? GameProgress.schoolCleanBg
+                        : GameProgress.schoolTrashBg)
+                    : result.levelNumber >= 2
+                        ? GameProgress.parkCleanBg
+                        : GameProgress.parkTrashBg,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.none,
           ),
@@ -111,17 +124,25 @@ class _RewardCard extends StatelessWidget {
           SizedBox(height: compact ? 8 : 12),
           _StarRow(stars: result.stars, compact: compact),
           SizedBox(height: compact ? 12 : 18),
-          compact
-              ? _CompactStats(
-                  result: result,
-                  labelSize: statLabelSize,
-                  valueSize: statValueSize,
-                )
-              : _WideStats(
-                  result: result,
-                  labelSize: statLabelSize,
-                  valueSize: statValueSize,
-                ),
+          if (result.isNeighborhood)
+            _NeighborhoodStats(
+              result: result,
+              compact: compact,
+              labelSize: statLabelSize,
+              valueSize: statValueSize,
+            )
+          else if (compact)
+            _CompactStats(
+              result: result,
+              labelSize: statLabelSize,
+              valueSize: statValueSize,
+            )
+          else
+            _WideStats(
+              result: result,
+              labelSize: statLabelSize,
+              valueSize: statValueSize,
+            ),
           SizedBox(height: compact ? 12 : 18),
           Align(
             alignment: Alignment.centerLeft,
@@ -142,6 +163,34 @@ class _RewardCard extends StatelessWidget {
               compact: compact,
             ),
           ),
+          if (result.rewardBadge != null) ...<Widget>[
+            SizedBox(height: compact ? 12 : 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Reward',
+                style: TextStyle(
+                  fontFamily: 'Jersey10',
+                  fontSize: sectionSize,
+                  height: 1,
+                  color: const Color(0xFFFFCA28),
+                ),
+              ),
+            ),
+            SizedBox(height: compact ? 6 : 10),
+            _RewardLine(
+              icon: Icons.security,
+              color: const Color(0xFFE53935),
+              label: result.rewardBadge!,
+              compact: compact,
+            ),
+            _RewardLine(
+              icon: Icons.monetization_on,
+              color: const Color(0xFFFFC107),
+              label: '+${result.coinsEarned} Coins',
+              compact: compact,
+            ),
+          ],
           SizedBox(height: compact ? 14 : 20),
           Center(
             child: PixelButton(
@@ -151,13 +200,135 @@ class _RewardCard extends StatelessWidget {
               width: null,
               compact: compact,
               onPressed: () async {
-                await SaveManager.instance.completeParkLevel1(
-                  coinsEarned: result.coinsEarned,
-                );
-                if (context.mounted) {
-                  Navigator.of(context).pop(true);
+                if (result.locationId == GameProgress.parkLocationId) {
+                  if (result.levelNumber == 1) {
+                    await SaveManager.instance.completeParkLevel1(
+                      coinsEarned: result.coinsEarned,
+                    );
+                    if (context.mounted) Navigator.of(context).pop(true);
+                  } else if (result.levelNumber == 2) {
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (BuildContext context) =>
+                            const ParkFullyRestoredScreen(),
+                      ),
+                    );
+                  }
+                } else if (result.locationId == GameProgress.schoolLocationId) {
+                  if (result.levelNumber == 3) {
+                    await SaveManager.instance.completeSchoolLevel3(
+                      coinsEarned: result.coinsEarned,
+                    );
+                    if (context.mounted) Navigator.of(context).pop(true);
+                  } else if (result.levelNumber == 4) {
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (BuildContext context) =>
+                            const SchoolFullyRestoredScreen(),
+                      ),
+                    );
+                  }
+                } else if (result.locationId ==
+                    GameProgress.neighborhoodLocationId) {
+                  if (result.levelNumber == 5) {
+                    await SaveManager.instance.completeNeighborhoodLevel5(
+                      coinsEarned: result.coinsEarned,
+                    );
+                    if (context.mounted) Navigator.of(context).pop(true);
+                  } else if (result.levelNumber == 6) {
+                    await SaveManager.instance.completeNeighborhoodLevel6();
+                    if (context.mounted) {
+                      Navigator.of(context)
+                          .popUntil((Route<dynamic> r) => r.isFirst);
+                    }
+                  }
                 }
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NeighborhoodStats extends StatelessWidget {
+  const _NeighborhoodStats({
+    required this.result,
+    required this.compact,
+    required this.labelSize,
+    required this.valueSize,
+  });
+
+  final LevelRewardResult result;
+  final bool compact;
+  final double labelSize;
+  final double valueSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: _StatTile(
+            label: 'Coins Earned',
+            value: '+${result.coinsEarned}',
+            icon: Icons.monetization_on,
+            accent: const Color(0xFFFFC107),
+            labelSize: labelSize,
+            valueSize: valueSize,
+            compact: compact,
+          ),
+        ),
+        SizedBox(width: compact ? 8 : 10),
+        Expanded(
+          child: _StatTile(
+            label: 'Correct Answers',
+            value: result.correctAnswersLabel,
+            icon: Icons.check_circle,
+            accent: const Color(0xFF66BB6A),
+            labelSize: labelSize,
+            valueSize: valueSize,
+            compact: compact,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RewardLine extends StatelessWidget {
+  const _RewardLine({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.compact,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: compact ? 4 : 6),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: color, size: compact ? 20 : 24),
+          SizedBox(width: compact ? 8 : 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Jersey10',
+                fontSize: compact ? 18 : 22,
+                height: 1,
+                color: Colors.white,
+              ),
             ),
           ),
         ],

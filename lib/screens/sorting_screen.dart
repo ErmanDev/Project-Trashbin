@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/game_character.dart';
+import '../models/game_progress.dart';
 import '../models/level_reward.dart';
 import '../models/sorting_item.dart';
 import '../models/town_location.dart';
@@ -24,6 +25,11 @@ class SortingScreen extends StatefulWidget {
     this.items = ParkSortingLevel.items,
     this.bins = ParkSortingLevel.bins,
     this.coinsPerCorrect = ParkSortingLevel.coinsPerCorrect,
+    this.levelTitle = ParkSortingLevel.levelTitle,
+    this.locationId = GameProgress.parkLocationId,
+    this.levelNumber = ParkSortingLevel.parkLevel,
+    this.phaseLabel = 'Phase 2',
+    this.backgroundAsset,
   });
 
   final GameCharacter character;
@@ -31,6 +37,11 @@ class SortingScreen extends StatefulWidget {
   final List<WasteItem> items;
   final List<WasteBin> bins;
   final int coinsPerCorrect;
+  final String levelTitle;
+  final String locationId;
+  final int levelNumber;
+  final String phaseLabel;
+  final String? backgroundAsset;
 
   @override
   State<SortingScreen> createState() => _SortingScreenState();
@@ -121,17 +132,33 @@ class _SortingScreenState extends State<SortingScreen>
 
   void _goToRewardScreen() {
     final int correctAnswers = _score;
+    final bool neighborhoodL5 = widget.locationId ==
+            GameProgress.neighborhoodLocationId &&
+        widget.levelNumber == GameProgress.neighborhoodLevel5;
+    final int bonus =
+        neighborhoodL5 ? GameProgress.neighborhoodLevel5BonusCoins : 0;
+    final int coinsShown = _sessionCoins + bonus;
+
     final LevelRewardResult result = LevelRewardResult(
       stars: LevelRewardResult.starsForMistakes(_mistakes),
-      coinsEarned: _sessionCoins,
+      coinsEarned: coinsShown,
       score: LevelRewardResult.scoreFor(
         correctAnswers: correctAnswers,
         mistakes: _mistakes,
       ),
       correctAnswers: correctAnswers,
       mistakes: _mistakes,
-      environmentalImpact: List<EnvironmentalImpact>.from(_environmentalImpact),
-      levelTitle: 'Park Level 1',
+      environmentalImpact: LevelRewardResult.aggregateImpacts(
+        _environmentalImpact,
+      ),
+      levelTitle: neighborhoodL5 ||
+              (widget.locationId == GameProgress.neighborhoodLocationId)
+          ? 'Level Complete'
+          : widget.levelTitle,
+      locationId: widget.locationId,
+      levelNumber: widget.levelNumber,
+      totalItems: widget.items.length,
+      rewardBadge: neighborhoodL5 ? GameProgress.ecoSafetyBadgeName : null,
     );
 
     Navigator.of(context).pushReplacement(
@@ -143,13 +170,10 @@ class _SortingScreenState extends State<SortingScreen>
 
   void _onWrongDrop(WasteItem item, WasteBin bin) {
     _onShakeTick();
-    setState(() => _mistakes++);
-    final String? lesson = item.messageForWrongBin(bin.type);
-    if (lesson == null) return;
-
     setState(() {
+      _mistakes++;
       _oopsTitle = 'Oops!';
-      _oopsMessage = lesson;
+      _oopsMessage = item.lessonForWrongBin(bin.type);
       _showOops = true;
     });
   }
@@ -176,7 +200,14 @@ class _SortingScreenState extends State<SortingScreen>
           fit: StackFit.expand,
           children: <Widget>[
             Image.asset(
-              'assets/images/png/park_trash_bg.png',
+              widget.backgroundAsset ??
+                  (widget.locationId == GameProgress.schoolLocationId
+                      ? (widget.levelNumber >= 4
+                          ? GameProgress.schoolCleanBg
+                          : GameProgress.schoolTrashBg)
+                      : widget.levelNumber >= 2
+                          ? GameProgress.parkCleanBg
+                          : GameProgress.parkTrashBg),
               fit: BoxFit.cover,
               filterQuality: FilterQuality.none,
             ),
@@ -282,7 +313,7 @@ class _SortingScreenState extends State<SortingScreen>
             border: Border.all(color: _border, width: 3),
           ),
           child: Text(
-            'Phase 2  •  ${_itemIndex + 1}/${widget.items.length}',
+            '${widget.phaseLabel}  •  ${_itemIndex + 1}/${widget.items.length}',
             style: TextStyle(
               fontFamily: 'Jersey10',
               fontSize: phaseSize,
@@ -318,11 +349,17 @@ class _SortingScreenState extends State<SortingScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               for (int i = 0; i < widget.bins.length; i++) ...<Widget>[
-                if (i > 0) SizedBox(width: compact ? 8 : 14),
+                if (i > 0)
+                  SizedBox(
+                    width: widget.bins.length >= 4
+                        ? (compact ? 4 : 8)
+                        : (compact ? 8 : 14),
+                  ),
                 Expanded(
                   child: _BinDropTarget(
                     bin: widget.bins[i],
                     compact: compact,
+                    dense: widget.bins.length >= 4,
                     enabled: !_showOops && _currentItem != null,
                     onCorrect: (WasteItem item, Offset globalPos) {
                       setState(() {
@@ -663,10 +700,12 @@ class _BinDropTarget extends StatefulWidget {
     required this.onCorrect,
     required this.onWrong,
     required this.enabled,
+    this.dense = false,
   });
 
   final WasteBin bin;
   final bool compact;
+  final bool dense;
   final void Function(WasteItem item, Offset globalPos) onCorrect;
   final void Function(WasteItem item, WasteBin bin) onWrong;
   final bool enabled;
@@ -798,7 +837,9 @@ class _BinDropTargetState extends State<_BinDropTarget>
                         maxLines: 1,
                         style: TextStyle(
                           fontFamily: 'Jersey10',
-                          fontSize: widget.compact ? 18 : 22,
+                          fontSize: widget.dense
+                              ? (widget.compact ? 14 : 18)
+                              : (widget.compact ? 18 : 22),
                           height: 1,
                           color: Colors.white,
                         ),

@@ -23,6 +23,11 @@ class PuzzleScreen extends StatefulWidget {
     required this.imageAsset,
     required this.itemName,
     this.gridSize = 2,
+    this.backgroundAsset = 'assets/images/png/park_trash_bg.png',
+    this.nextBuilder,
+    this.instructionText,
+    this.completeMessage,
+    this.phaseLabel = 'Phase 1',
   });
 
   final GameCharacter character;
@@ -30,6 +35,11 @@ class PuzzleScreen extends StatefulWidget {
   final String imageAsset;
   final String itemName;
   final int gridSize;
+  final String backgroundAsset;
+  final WidgetBuilder? nextBuilder;
+  final String? instructionText;
+  final String? completeMessage;
+  final String phaseLabel;
 
   @override
   State<PuzzleScreen> createState() => _PuzzleScreenState();
@@ -112,13 +122,13 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   }
 
   void _onContinue() {
+    final WidgetBuilder next = widget.nextBuilder ??
+        (BuildContext context) => ParkSortTransitionScreen(
+              character: widget.character,
+              location: widget.location,
+            );
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) => ParkSortTransitionScreen(
-          character: widget.character,
-          location: widget.location,
-        ),
-      ),
+      MaterialPageRoute<void>(builder: next),
     );
   }
 
@@ -128,9 +138,8 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          // Soft park backdrop, dimmed so the puzzle pops.
           Image.asset(
-            'assets/images/png/park_trash_bg.png',
+            widget.backgroundAsset,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.none,
           ),
@@ -143,21 +152,30 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
               ),
             ),
           ),
-
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(flex: 5, child: _buildInfoPanel()),
-                  const SizedBox(width: 16),
-                  Expanded(flex: 6, child: _buildBoardArea()),
-                ],
-              ),
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final bool compact = constraints.maxHeight < 420;
+                return Padding(
+                  padding: EdgeInsets.all(compact ? 8 : 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Expanded(
+                        flex: compact ? 5 : 5,
+                        child: _buildInfoColumn(compact: compact),
+                      ),
+                      SizedBox(width: compact ? 10 : 16),
+                      Expanded(
+                        flex: compact ? 5 : 6,
+                        child: _buildBoardArea(compact: compact),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
-
           if (_complete) ...<Widget>[
             Positioned.fill(child: _buildCompletePanel()),
             const Positioned.fill(child: ConfettiOverlay()),
@@ -167,19 +185,24 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     );
   }
 
-  Widget _buildInfoPanel() {
+  Widget _buildInfoColumn({required bool compact}) {
+    if (compact) {
+      return _buildCompactInfoColumn();
+    }
+
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Align(
           alignment: Alignment.topLeft,
           child: _BackChip(onTap: () => Navigator.of(context).pop()),
         ),
-        const Spacer(),
-        const Text(
-          'Phase 1',
-          style: TextStyle(
+        const SizedBox(height: 8),
+        Text(
+          widget.phaseLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
             fontFamily: 'Jersey10',
             fontSize: 30,
             height: 1,
@@ -188,28 +211,38 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
         ),
         const Text(
           'Fix the Picture!',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontFamily: 'Jersey10',
             fontSize: 46,
             height: 1,
             color: Colors.white,
-            shadows: <Shadow>[Shadow(color: _border, offset: Offset(2, 2))],
+            shadows: <Shadow>[
+              Shadow(color: _border, offset: Offset(2, 2)),
+            ],
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          'Tap two pieces to swap them. Rebuild the ${widget.itemName}!',
-          style: const TextStyle(
-            fontFamily: 'Jersey10',
-            fontSize: 24,
-            height: 1.1,
-            color: Color(0xFFDCE6DC),
+        Expanded(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Text(
+              widget.instructionText ??
+                  'Tap two pieces to swap them. Rebuild the ${widget.itemName}!',
+              style: const TextStyle(
+                fontFamily: 'Jersey10',
+                fontSize: 24,
+                height: 1.15,
+                color: Color(0xFFDCE6DC),
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Row(
           children: <Widget>[
-            _ReferenceThumb(imageAsset: widget.imageAsset),
+            _ReferenceThumb(imageAsset: widget.imageAsset, size: 120),
             const SizedBox(width: 12),
             Flexible(
               child: Column(
@@ -227,6 +260,8 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
                   ),
                   Text(
                     widget.itemName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontFamily: 'Jersey10',
                       fontSize: 30,
@@ -239,28 +274,105 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
             ),
           ],
         ),
-        const Spacer(flex: 2),
       ],
     );
   }
 
-  Widget _buildBoardArea() {
+  /// Mobile: prioritize a large Goal preview so players can see the target.
+  Widget _buildCompactInfoColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            _BackChip(
+              onTap: () => Navigator.of(context).pop(),
+              compact: true,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                widget.phaseLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Jersey10',
+                  fontSize: 15,
+                  height: 1,
+                  color: Color(0xFFFFCA28),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Fix the Picture!',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: 'Jersey10',
+            fontSize: 22,
+            height: 1,
+            color: Colors.white,
+            shadows: <Shadow>[
+              Shadow(color: _border, offset: Offset(2, 2)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.instructionText ??
+              'Tap two pieces to swap them. Rebuild the ${widget.itemName}!',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: 'Jersey10',
+            fontSize: 13,
+            height: 1.15,
+            color: Color(0xFFDCE6DC),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints c) {
+              final double side = math.min(c.maxWidth, c.maxHeight);
+              return Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: side,
+                  height: side,
+                  child: _ReferenceThumb(
+                    imageAsset: widget.imageAsset,
+                    size: side,
+                    label: 'Goal',
+                    subtitle: widget.itemName,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBoardArea({required bool compact}) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double side =
             math.min(constraints.maxWidth, constraints.maxHeight);
-        const double gap = 6;
-        final double cell = (side - gap * (widget.gridSize + 1)) /
-            widget.gridSize;
+        final double gap = compact ? 3.0 : 6.0;
 
         return Center(
           child: Container(
             width: side,
             height: side,
-            padding: const EdgeInsets.all(gap),
+            padding: EdgeInsets.all(gap),
             decoration: BoxDecoration(
               color: _panel,
-              border: Border.all(color: _border, width: 5),
+              border: Border.all(color: _border, width: compact ? 3 : 5),
               boxShadow: const <BoxShadow>[
                 BoxShadow(color: Color(0xAA000000), offset: Offset(0, 6)),
               ],
@@ -272,7 +384,11 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
                     child: Row(
                       children: <Widget>[
                         for (int c = 0; c < widget.gridSize; c++)
-                          _buildCell(r * widget.gridSize + c, cell, gap),
+                          _buildCell(
+                            r * widget.gridSize + c,
+                            gap,
+                            compact: compact,
+                          ),
                       ],
                     ),
                   ),
@@ -284,7 +400,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     );
   }
 
-  Widget _buildCell(int cell, double cellSize, double gap) {
+  Widget _buildCell(int cell, double gap, {required bool compact}) {
     final bool locked = _locked.contains(cell);
     final bool selected = _selected == cell;
     final Color borderColor = locked
@@ -303,7 +419,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
             duration: const Duration(milliseconds: 120),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                border: Border.all(color: borderColor, width: 4),
+                border: Border.all(color: borderColor, width: compact ? 2 : 4),
                 boxShadow: selected
                     ? const <BoxShadow>[
                         BoxShadow(color: Color(0x88FFD54F), blurRadius: 10),
@@ -319,11 +435,11 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
                     gridSize: widget.gridSize,
                   ),
                   if (locked)
-                    const Align(
+                    Align(
                       alignment: Alignment.topRight,
                       child: Padding(
-                        padding: EdgeInsets.all(3),
-                        child: _CheckBadge(),
+                        padding: EdgeInsets.all(compact ? 1 : 3),
+                        child: _CheckBadge(compact: compact),
                       ),
                     ),
                 ],
@@ -336,50 +452,67 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   }
 
   Widget _buildCompletePanel() {
+    final bool compact = MediaQuery.sizeOf(context).height < 420;
     return Center(
-      child: Container(
-        margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.fromLTRB(28, 22, 28, 24),
-        decoration: BoxDecoration(
-          color: _panel,
-          border: Border.all(color: _border, width: 5),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(color: Color(0xAA000000), offset: Offset(0, 8)),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Icon(Icons.emoji_events, color: Color(0xFFFFCA28), size: 56),
-            const SizedBox(height: 6),
-            const Text(
-              'Great Job!',
-              style: TextStyle(
-                fontFamily: 'Jersey10',
-                fontSize: 56,
-                height: 1,
-                color: Colors.white,
-                shadows: <Shadow>[Shadow(color: _border, offset: Offset(3, 3))],
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(compact ? 12 : 24),
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: compact ? 12 : 24),
+          padding: EdgeInsets.fromLTRB(
+            compact ? 16 : 28,
+            compact ? 14 : 22,
+            compact ? 16 : 28,
+            compact ? 16 : 24,
+          ),
+          decoration: BoxDecoration(
+            color: _panel,
+            border: Border.all(color: _border, width: compact ? 4 : 5),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(color: Color(0xAA000000), offset: Offset(0, 8)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                Icons.emoji_events,
+                color: const Color(0xFFFFCA28),
+                size: compact ? 36 : 56,
               ),
-            ),
-            Text(
-              'You fixed the ${widget.itemName}!',
-              style: const TextStyle(
-                fontFamily: 'Jersey10',
-                fontSize: 26,
-                height: 1.1,
-                color: Color(0xFFDCE6DC),
+              SizedBox(height: compact ? 4 : 6),
+              Text(
+                'Great Job!',
+                style: TextStyle(
+                  fontFamily: 'Jersey10',
+                  fontSize: compact ? 36 : 56,
+                  height: 1,
+                  color: Colors.white,
+                  shadows: const <Shadow>[
+                    Shadow(color: _border, offset: Offset(3, 3)),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 18),
-            PixelButton(
-              label: 'Continue',
-              icon: Icons.arrow_forward,
-              color: const Color(0xFF4CAF50),
-              width: null,
-              onPressed: _onContinue,
-            ),
-          ],
+              Text(
+                widget.completeMessage ?? 'You fixed the ${widget.itemName}!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Jersey10',
+                  fontSize: compact ? 18 : 26,
+                  height: 1.1,
+                  color: const Color(0xFFDCE6DC),
+                ),
+              ),
+              SizedBox(height: compact ? 12 : 18),
+              PixelButton(
+                label: 'Continue',
+                icon: Icons.arrow_forward,
+                color: const Color(0xFF4CAF50),
+                width: null,
+                compact: compact,
+                onPressed: _onContinue,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -429,70 +562,144 @@ class _PuzzlePieceView extends StatelessWidget {
 }
 
 class _ReferenceThumb extends StatelessWidget {
-  const _ReferenceThumb({required this.imageAsset});
+  const _ReferenceThumb({
+    required this.imageAsset,
+    this.size = 96,
+    this.label,
+    this.subtitle,
+  });
 
   final String imageAsset;
+  final double size;
+  final String? label;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
+    final bool large = size >= 100;
     return Container(
-      width: 96,
-      height: 96,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFF2B2B3A), width: 4),
+        border: Border.all(
+          color: const Color(0xFF9FE6A0),
+          width: large ? 3 : (size < 70 ? 2 : 4),
+        ),
         color: Colors.white,
       ),
       clipBehavior: Clip.hardEdge,
-      child: Image.asset(
-        imageAsset,
-        fit: BoxFit.cover,
-        filterQuality: FilterQuality.none,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Image.asset(
+            imageAsset,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.none,
+          ),
+          if (label != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[Color(0x00000000), Color(0xCC000000)],
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 14, 6, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        label!,
+                        style: TextStyle(
+                          fontFamily: 'Jersey10',
+                          fontSize: large ? 16 : 14,
+                          height: 1,
+                          color: const Color(0xFF9FE6A0),
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Jersey10',
+                            fontSize: large ? 18 : 15,
+                            height: 1,
+                            color: Colors.white,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 class _CheckBadge extends StatelessWidget {
-  const _CheckBadge();
+  const _CheckBadge({this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(2),
+      padding: EdgeInsets.all(compact ? 1 : 2),
       decoration: const BoxDecoration(
         color: Color(0xFF43A047),
         shape: BoxShape.circle,
       ),
-      child: const Icon(Icons.check, color: Colors.white, size: 16),
+      child: Icon(Icons.check, color: Colors.white, size: compact ? 10 : 16),
     );
   }
 }
 
 class _BackChip extends StatelessWidget {
-  const _BackChip({required this.onTap});
+  const _BackChip({
+    required this.onTap,
+    this.compact = false,
+  });
 
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 12,
+          vertical: compact ? 4 : 6,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xF00E0E1A),
-          border: Border.all(color: const Color(0xFF2B2B3A), width: 3),
+          border: Border.all(
+            color: const Color(0xFF2B2B3A),
+            width: compact ? 2 : 3,
+          ),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(Icons.arrow_back, color: Colors.white, size: 20),
-            SizedBox(width: 6),
+            Icon(Icons.arrow_back, color: Colors.white, size: compact ? 16 : 20),
+            SizedBox(width: compact ? 4 : 6),
             Text(
               'Map',
               style: TextStyle(
                 fontFamily: 'Jersey10',
-                fontSize: 22,
+                fontSize: compact ? 18 : 22,
                 height: 1,
                 color: Colors.white,
               ),

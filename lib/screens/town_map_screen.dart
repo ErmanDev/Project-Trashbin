@@ -5,10 +5,18 @@ import '../models/game_progress.dart';
 import '../models/town_location.dart';
 import '../services/save_manager.dart';
 import '../widgets/park_celebration_overlay.dart';
+import '../widgets/school_celebration_overlay.dart';
+import '../widgets/neighborhood_celebration_overlay.dart';
 import 'location_screen.dart';
 import 'park_intro_screen.dart';
-import 'park_level2_screen.dart';
+import 'park_level2_intro_screen.dart';
+import 'school_intro_screen.dart';
+import 'school_level4_intro_screen.dart';
+import 'neighborhood_intro_screen.dart';
+import 'neighborhood_level6_intro_screen.dart';
 import 'settings_screen.dart';
+
+enum _MapCelebration { none, park, school, neighborhood }
 
 /// The main hub of the game: the town map.
 ///
@@ -34,10 +42,17 @@ class _TownMapScreenState extends State<TownMapScreen> {
   Set<String> _unlocked = SaveManager.defaultUnlocked.toSet();
   int _parkMaxLevel = GameProgress.parkLevel1;
   bool _parkRestored = false;
+  bool _parkStar = false;
+  int _schoolMaxLevel = GameProgress.schoolLevel3;
+  bool _schoolRestored = false;
+  bool _schoolStar = false;
+  int _neighborhoodMaxLevel = GameProgress.neighborhoodLevel5;
+  bool _neighborhoodRestored = false;
+  bool _neighborhoodStar = false;
   String? _equippedHat;
   bool _loaded = false;
   bool _initialPanSet = false;
-  bool _celebrating = false;
+  _MapCelebration _celebration = _MapCelebration.none;
   int _celebrationCoins = 0;
 
   Size _lastViewSize = Size.zero;
@@ -97,6 +112,16 @@ class _TownMapScreenState extends State<TownMapScreen> {
         await SaveManager.instance.loadUnlockedLocations();
     final int parkMaxLevel = await SaveManager.instance.loadParkMaxLevel();
     final bool parkRestored = await SaveManager.instance.isParkRestored();
+    final bool parkStar = await SaveManager.instance.hasParkCompletionStar();
+    final int schoolMaxLevel = await SaveManager.instance.loadSchoolMaxLevel();
+    final bool schoolRestored = await SaveManager.instance.isSchoolRestored();
+    final bool schoolStar = await SaveManager.instance.hasSchoolCompletionStar();
+    final int neighborhoodMaxLevel =
+        await SaveManager.instance.loadNeighborhoodMaxLevel();
+    final bool neighborhoodRestored =
+        await SaveManager.instance.isNeighborhoodRestored();
+    final bool neighborhoodStar =
+        await SaveManager.instance.hasNeighborhoodCompletionStar();
     final String? equippedHat = await SaveManager.instance.loadEquippedHat();
     if (!mounted) return;
     setState(() {
@@ -105,12 +130,19 @@ class _TownMapScreenState extends State<TownMapScreen> {
       _unlocked = unlocked;
       _parkMaxLevel = parkMaxLevel;
       _parkRestored = parkRestored;
+      _parkStar = parkStar;
+      _schoolMaxLevel = schoolMaxLevel;
+      _schoolRestored = schoolRestored;
+      _schoolStar = schoolStar;
+      _neighborhoodMaxLevel = neighborhoodMaxLevel;
+      _neighborhoodRestored = neighborhoodRestored;
+      _neighborhoodStar = neighborhoodStar;
       _equippedHat = equippedHat;
       _loaded = true;
     });
   }
 
-  Future<void> _maybeStartCelebration() async {
+  Future<void> _maybeStartParkCelebration() async {
     if (!await SaveManager.instance.hasPendingParkCelebration()) return;
     final int coins = await SaveManager.instance.loadPendingCelebrationCoins();
     if (!mounted) return;
@@ -118,15 +150,46 @@ class _TownMapScreenState extends State<TownMapScreen> {
       if (!mounted) return;
       setState(() {
         _celebrationCoins = coins;
-        _celebrating = true;
+        _celebration = _MapCelebration.park;
       });
     });
   }
 
-  Future<void> _finishCelebration() async {
-    await SaveManager.instance.clearPendingParkCelebration();
+  Future<void> _maybeStartSchoolCelebration() async {
+    if (!await SaveManager.instance.hasPendingSchoolCelebration()) return;
+    final int coins =
+        await SaveManager.instance.loadPendingSchoolCelebrationCoins();
     if (!mounted) return;
-    setState(() => _celebrating = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _celebrationCoins = coins;
+        _celebration = _MapCelebration.school;
+      });
+    });
+  }
+
+  Future<void> _maybeStartNeighborhoodCelebration() async {
+    if (!await SaveManager.instance.hasPendingNeighborhoodCelebration()) {
+      return;
+    }
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _celebration = _MapCelebration.neighborhood);
+    });
+  }
+
+  Future<void> _finishCelebration() async {
+    if (_celebration == _MapCelebration.park) {
+      await SaveManager.instance.clearPendingParkCelebration();
+    } else if (_celebration == _MapCelebration.school) {
+      await SaveManager.instance.clearPendingSchoolCelebration();
+    } else if (_celebration == _MapCelebration.neighborhood) {
+      await SaveManager.instance.clearPendingNeighborhoodCelebration();
+    }
+    if (!mounted) return;
+    setState(() => _celebration = _MapCelebration.none);
     await _load();
   }
 
@@ -148,7 +211,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
             borderRadius: BorderRadius.zero,
           ),
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 420 : 480),
+            constraints: BoxConstraints(maxWidth: compact ? 320 : 360),
             child: Padding(
               padding: EdgeInsets.fromLTRB(
                 compact ? 14 : 20,
@@ -209,7 +272,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
         if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (BuildContext context) => ParkLevel2Screen(
+            builder: (BuildContext context) => ParkLevel2IntroScreen(
               location: location,
               character: widget.character,
             ),
@@ -231,7 +294,242 @@ class _TownMapScreenState extends State<TownMapScreen> {
     );
     if (!mounted) return;
     await _load();
-    await _maybeStartCelebration();
+    await _maybeStartParkCelebration();
+  }
+
+  String? _nodeLabel(TownLocation location) {
+    final bool unlocked = _unlocked.contains(location.id);
+    if (location.id == 'park') {
+      if (_parkRestored) return 'Restored';
+      if (_parkMaxLevel >= GameProgress.parkLevel2) {
+        return 'Lv $_parkMaxLevel';
+      }
+      return null;
+    }
+    if (location.id == 'school') {
+      if (!unlocked) return 'Locked';
+      if (_schoolRestored) return 'Restored';
+      if (_schoolMaxLevel >= GameProgress.schoolLevel4) {
+        return 'Lv $_schoolMaxLevel';
+      }
+      return 'Unlocked';
+    }
+    if (location.id == 'neighborhood') {
+      if (!unlocked) return 'Locked';
+      if (_neighborhoodRestored) return 'Restored';
+      if (_neighborhoodMaxLevel >= GameProgress.neighborhoodLevel6) {
+        return 'Lv $_neighborhoodMaxLevel';
+      }
+      return 'Unlocked';
+    }
+    if (!unlocked) return 'Locked';
+    return null;
+  }
+
+  Future<void> _openNeighborhood(TownLocation location) async {
+    final bool level5Done = await SaveManager.instance.isLevelCompleted(
+      GameProgress.neighborhoodLocationId,
+      GameProgress.neighborhoodLevel5,
+    );
+
+    if (level5Done &&
+        _neighborhoodMaxLevel >= GameProgress.neighborhoodLevel6) {
+      final int? picked = await _pickNeighborhoodLevel();
+      if (!mounted || picked == null) return;
+      if (picked == GameProgress.neighborhoodLevel6) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (BuildContext context) => NeighborhoodLevel6IntroScreen(
+              location: location,
+              character: widget.character,
+            ),
+          ),
+        );
+        if (mounted) await _load();
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => NeighborhoodIntroScreen(
+          location: location,
+          character: widget.character,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _load();
+    await _maybeStartNeighborhoodCelebration();
+  }
+
+  Future<int?> _pickNeighborhoodLevel() async {
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        final double h = MediaQuery.sizeOf(context).height;
+        final bool compact = h < 420;
+        return Dialog(
+          backgroundColor: const Color(0xF00E0E1A),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: compact ? 24 : 40,
+            vertical: compact ? 12 : 24,
+          ),
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: _kBorder, width: 4),
+            borderRadius: BorderRadius.zero,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 320 : 360),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Choose Neighborhood Level',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Jersey10',
+                      fontSize: compact ? 24 : 30,
+                      height: 1,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 10 : 14),
+                  _LevelPickTile(
+                    label: 'Level 5',
+                    subtitle: 'Puzzle + household sorting',
+                    color: const Color(0xFFEC407A),
+                    compact: compact,
+                    onTap: () => Navigator.of(context)
+                        .pop(GameProgress.neighborhoodLevel5),
+                  ),
+                  SizedBox(height: compact ? 6 : 10),
+                  _LevelPickTile(
+                    label: 'Level 6',
+                    subtitle: 'Finish the neighborhood',
+                    color: const Color(0xFF7E57C2),
+                    compact: compact,
+                    onTap: () => Navigator.of(context)
+                        .pop(GameProgress.neighborhoodLevel6),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openSchool(TownLocation location) async {
+    final bool level3Done = await SaveManager.instance.isLevelCompleted(
+      GameProgress.schoolLocationId,
+      GameProgress.schoolLevel3,
+    );
+
+    if (level3Done && _schoolMaxLevel >= GameProgress.schoolLevel4) {
+      final int? picked = await _pickSchoolLevel();
+      if (!mounted || picked == null) return;
+      if (picked == GameProgress.schoolLevel4) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (BuildContext context) => SchoolLevel4IntroScreen(
+              location: location,
+              character: widget.character,
+            ),
+          ),
+        );
+        if (mounted) await _load();
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => SchoolIntroScreen(
+          location: location,
+          character: widget.character,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _load();
+    await _maybeStartSchoolCelebration();
+  }
+
+  Future<int?> _pickSchoolLevel() async {
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        final double h = MediaQuery.sizeOf(context).height;
+        final bool compact = h < 420;
+        return Dialog(
+          backgroundColor: const Color(0xF00E0E1A),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: compact ? 24 : 40,
+            vertical: compact ? 12 : 24,
+          ),
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: _kBorder, width: 4),
+            borderRadius: BorderRadius.zero,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 320 : 360),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Choose School Level',
+                    style: TextStyle(
+                      fontFamily: 'Jersey10',
+                      fontSize: compact ? 26 : 32,
+                      height: 1,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 10 : 14),
+                  _LevelPickTile(
+                    label: 'Level 3',
+                    subtitle: 'Puzzle + compost',
+                    color: const Color(0xFFFFB300),
+                    compact: compact,
+                    onTap: () =>
+                        Navigator.of(context).pop(GameProgress.schoolLevel3),
+                  ),
+                  SizedBox(height: compact ? 6 : 10),
+                  _LevelPickTile(
+                    label: 'Level 4',
+                    subtitle: 'Finish the campus',
+                    color: const Color(0xFF00897B),
+                    compact: compact,
+                    onTap: () =>
+                        Navigator.of(context).pop(GameProgress.schoolLevel4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _onLocationTap(TownLocation location, bool unlocked) async {
@@ -247,9 +545,16 @@ class _TownMapScreenState extends State<TownMapScreen> {
         );
       return;
     }
-    // The Park opens with its Level 1 story cinematic before the level.
     if (location.id == 'park') {
       await _openPark(location);
+      return;
+    }
+    if (location.id == 'school') {
+      await _openSchool(location);
+      return;
+    }
+    if (location.id == 'neighborhood') {
+      await _openNeighborhood(location);
       return;
     }
     Navigator.of(context).push(
@@ -300,7 +605,10 @@ class _TownMapScreenState extends State<TownMapScreen> {
           _lastMaxPanX = maxPanX;
           _lastMaxPanY = maxPanY;
 
-          if (_loaded && !_initialPanSet && compact && !_celebrating) {
+          if (_loaded &&
+              !_initialPanSet &&
+              compact &&
+              _celebration == _MapCelebration.none) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               _applyInitialPan(viewH, maxPanY);
@@ -313,7 +621,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
               ClipRect(
                 child: InteractiveViewer(
                   transformationController: _mapTransform,
-                  panEnabled: !_celebrating,
+                  panEnabled: _celebration == _MapCelebration.none,
                   scaleEnabled: false,
                   constrained: false,
                   // Zero margin — cannot drag past the image edges.
@@ -344,12 +652,19 @@ class _TownMapScreenState extends State<TownMapScreen> {
                                   location: location,
                                   unlocked: _unlocked.contains(location.id),
                                   compact: compact,
-                                  levelLabel: location.id == 'park' &&
-                                          _parkMaxLevel >=
-                                              GameProgress.parkLevel2
-                                      ? 'Lv $_parkMaxLevel'
-                                      : null,
-                                  restored: location.id == 'park' && _parkRestored,
+                                  levelLabel: _nodeLabel(location),
+                                  restored: (location.id == 'park' &&
+                                          _parkRestored) ||
+                                      (location.id == 'school' &&
+                                          _schoolRestored) ||
+                                      (location.id == 'neighborhood' &&
+                                          _neighborhoodRestored),
+                                  showStar: (location.id == 'park' &&
+                                          _parkStar) ||
+                                      (location.id == 'school' &&
+                                          _schoolStar) ||
+                                      (location.id == 'neighborhood' &&
+                                          _neighborhoodStar),
                                   onTap: () => _onLocationTap(
                                     location,
                                     _unlocked.contains(location.id),
@@ -397,7 +712,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
                 ),
               ),
 
-              if (compact && !_celebrating)
+              if (compact && _celebration == _MapCelebration.none)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -439,7 +754,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
                   ),
                 ),
 
-              if (_celebrating)
+              if (_celebration == _MapCelebration.park)
                 ParkCelebrationOverlay(
                   mapTransform: _mapTransform,
                   mapSize: _lastMapSize,
@@ -447,6 +762,25 @@ class _TownMapScreenState extends State<TownMapScreen> {
                   maxPanX: _lastMaxPanX,
                   maxPanY: _lastMaxPanY,
                   coinsEarned: _celebrationCoins,
+                  onFinished: _finishCelebration,
+                ),
+              if (_celebration == _MapCelebration.school)
+                SchoolCelebrationOverlay(
+                  mapTransform: _mapTransform,
+                  mapSize: _lastMapSize,
+                  viewSize: _lastViewSize,
+                  maxPanX: _lastMaxPanX,
+                  maxPanY: _lastMaxPanY,
+                  coinsEarned: _celebrationCoins,
+                  onFinished: _finishCelebration,
+                ),
+              if (_celebration == _MapCelebration.neighborhood)
+                NeighborhoodCelebrationOverlay(
+                  mapTransform: _mapTransform,
+                  mapSize: _lastMapSize,
+                  viewSize: _lastViewSize,
+                  maxPanX: _lastMaxPanX,
+                  maxPanY: _lastMaxPanY,
                   onFinished: _finishCelebration,
                 ),
             ],
@@ -521,14 +855,17 @@ class _ProfileBadge extends StatelessWidget {
                     fit: BoxFit.cover,
                   ),
                 ),
-                if (equippedHat == GameProgress.ecoHatId)
+                if (equippedHat == GameProgress.ecoHatId ||
+                    equippedHat == GameProgress.greenCapId)
                   Positioned(
                     top: compact ? -4 : -6,
                     left: 0,
                     right: 0,
                     child: Icon(
                       Icons.checkroom,
-                      color: const Color(0xFF66BB6A),
+                      color: equippedHat == GameProgress.greenCapId
+                          ? const Color(0xFF43A047)
+                          : const Color(0xFF66BB6A),
                       size: compact ? 18 : 22,
                     ),
                   ),
@@ -749,6 +1086,7 @@ class _LocationNode extends StatefulWidget {
     this.compact = false,
     this.levelLabel,
     this.restored = false,
+    this.showStar = false,
   });
 
   final TownLocation location;
@@ -757,6 +1095,7 @@ class _LocationNode extends StatefulWidget {
   final bool compact;
   final String? levelLabel;
   final bool restored;
+  final bool showStar;
 
   @override
   State<_LocationNode> createState() => _LocationNodeState();
@@ -788,7 +1127,7 @@ class _LocationNodeState extends State<_LocationNode>
     final bool unlocked = widget.unlocked;
     final bool compact = widget.compact;
     final Color medallionColor = unlocked
-        ? (widget.restored && widget.location.id == 'park'
+        ? (widget.restored
             ? const Color(0xFF66BB6A)
             : widget.location.color)
         : const Color(0xFF9E9E9E);
@@ -829,7 +1168,12 @@ class _LocationNodeState extends State<_LocationNode>
                 Positioned(
                   right: compact ? -6 : -8,
                   top: compact ? -6 : -8,
-                  child: _StateBadge(unlocked: unlocked, compact: compact),
+                  child: _StateBadge(
+                    unlocked: unlocked,
+                    restored: widget.restored,
+                    showStar: widget.showStar,
+                    compact: compact,
+                  ),
                 ),
               ],
             ),
@@ -863,27 +1207,40 @@ class _LocationNodeState extends State<_LocationNode>
 }
 
 class _StateBadge extends StatelessWidget {
-  const _StateBadge({required this.unlocked, this.compact = false});
+  const _StateBadge({
+    required this.unlocked,
+    this.restored = false,
+    this.showStar = false,
+    this.compact = false,
+  });
 
   final bool unlocked;
+  final bool restored;
+  final bool showStar;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final double iconSize = compact ? 13 : 16;
+    final Color bg = !unlocked
+        ? const Color(0xFF616161)
+        : restored
+            ? const Color(0xFF2E7D32)
+            : const Color(0xFF43A047);
+    final IconData icon = !unlocked
+        ? Icons.lock
+        : showStar
+            ? Icons.star
+            : Icons.check;
 
     return Container(
       padding: EdgeInsets.all(compact ? 2 : 3),
       decoration: BoxDecoration(
-        color: unlocked ? const Color(0xFF43A047) : const Color(0xFF616161),
+        color: bg,
         shape: BoxShape.circle,
         border: Border.all(color: _kBorder, width: 2),
       ),
-      child: Icon(
-        unlocked ? Icons.check : Icons.lock,
-        color: Colors.white,
-        size: iconSize,
-      ),
+      child: Icon(icon, color: Colors.white, size: iconSize),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Summary data shown on the post-level reward screen.
 class LevelRewardResult {
   const LevelRewardResult({
@@ -12,6 +14,9 @@ class LevelRewardResult {
     this.levelNumber = 1,
     this.totalItems,
     this.rewardBadge,
+    this.perfectBonus = false,
+    this.impactSectionTitle = 'Environmental Impact',
+    this.rewardIcon = Icons.military_tech,
   });
 
   final int stars;
@@ -30,10 +35,21 @@ class LevelRewardResult {
   /// Optional badge unlocked for this level (shown in a Reward section).
   final String? rewardBadge;
 
+  /// Show a Perfect Bonus row when the player made zero mistakes.
+  final bool perfectBonus;
+
+  final String impactSectionTitle;
+  final IconData rewardIcon;
+
   /// Back-compat alias used by older park call sites.
   int get parkLevel => levelNumber;
 
   bool get isNeighborhood => locationId == 'neighborhood';
+
+  bool get isBeach => locationId == 'beach';
+
+  /// Neighborhood / Beach mission results show coins + correct/total.
+  bool get usesMissionStats => isNeighborhood || isBeach;
 
   String get correctAnswersLabel {
     if (totalItems != null) {

@@ -8,17 +8,17 @@ import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
 import '../widgets/pixel_button.dart';
 
-enum NeighborhoodCelebrationPhase {
+enum BeachCelebrationPhase {
   panning,
   progress,
-  captain,
+  ranger,
   unlock,
   done,
 }
 
-/// Post–Level-6 celebration: pan to Neighborhood → street progress → Captain → Beach.
-class NeighborhoodCelebrationOverlay extends StatefulWidget {
-  const NeighborhoodCelebrationOverlay({
+/// Post–Level-7 celebration: pan to Beach → shoreline cleanup → Ranger → Level 8.
+class BeachCelebrationOverlay extends StatefulWidget {
+  const BeachCelebrationOverlay({
     super.key,
     required this.mapTransform,
     required this.mapSize,
@@ -36,20 +36,19 @@ class NeighborhoodCelebrationOverlay extends StatefulWidget {
   final VoidCallback onFinished;
 
   @override
-  State<NeighborhoodCelebrationOverlay> createState() =>
-      _NeighborhoodCelebrationOverlayState();
+  State<BeachCelebrationOverlay> createState() =>
+      _BeachCelebrationOverlayState();
 }
 
-class _NeighborhoodCelebrationOverlayState
-    extends State<NeighborhoodCelebrationOverlay>
+class _BeachCelebrationOverlayState extends State<BeachCelebrationOverlay>
     with TickerProviderStateMixin {
-  static const Color _accent = Color(0xFFEC407A);
-  static const String _captainLine =
-      'People are beginning to understand that proper waste segregation protects everyone.';
+  static const Color _accent = Color(0xFF00838F);
+  static const String _rangerLine =
+      'Every piece of trash removed gives nature another chance.';
 
-  NeighborhoodCelebrationPhase _phase = NeighborhoodCelebrationPhase.panning;
-  String _captainText = '';
-  bool _captainTyping = false;
+  BeachCelebrationPhase _phase = BeachCelebrationPhase.panning;
+  String _rangerText = '';
+  bool _rangerTyping = false;
 
   late final AnimationController _pan = AnimationController(
     vsync: this,
@@ -71,28 +70,25 @@ class _NeighborhoodCelebrationOverlayState
   late final Matrix4 _startTransform;
   late final Matrix4 _targetTransform;
 
-  Offset get _neighborhoodMapOffset {
-    final TownLocation neighborhood = TownLocation.all.firstWhere(
-      (TownLocation l) => l.id == 'neighborhood',
+  Offset get _beachMapOffset {
+    final TownLocation beach = TownLocation.all.firstWhere(
+      (TownLocation l) => l.id == 'beach',
     );
-    final double x =
-        (neighborhood.position.x + 1) / 2 * widget.mapSize.width;
-    final double y =
-        (neighborhood.position.y + 1) / 2 * widget.mapSize.height;
+    final double x = (beach.position.x + 1) / 2 * widget.mapSize.width;
+    final double y = (beach.position.y + 1) / 2 * widget.mapSize.height;
     return Offset(x, y);
   }
 
   bool get _showMapProgress =>
-      _phase == NeighborhoodCelebrationPhase.progress ||
-      (_phase == NeighborhoodCelebrationPhase.captain &&
-          _cinematicIn.value < 1);
+      _phase == BeachCelebrationPhase.progress ||
+      (_phase == BeachCelebrationPhase.ranger && _cinematicIn.value < 1);
 
   bool get _showCinematic =>
-      _phase.index >= NeighborhoodCelebrationPhase.captain.index;
+      _phase.index >= BeachCelebrationPhase.ranger.index;
 
   double get _cinematicOpacity {
-    if (_phase.index > NeighborhoodCelebrationPhase.captain.index) return 1;
-    if (_phase == NeighborhoodCelebrationPhase.captain) {
+    if (_phase.index > BeachCelebrationPhase.ranger.index) return 1;
+    if (_phase == BeachCelebrationPhase.ranger) {
       return Curves.easeInOut.transform(_cinematicIn.value);
     }
     return 0;
@@ -106,28 +102,28 @@ class _NeighborhoodCelebrationOverlayState
 
     _pan.addStatusListener((AnimationStatus status) {
       if (status == AnimationStatus.completed && mounted) {
-        setState(() => _phase = NeighborhoodCelebrationPhase.progress);
+        setState(() => _phase = BeachCelebrationPhase.progress);
         _progress.forward();
       }
     });
     _progress.addStatusListener((AnimationStatus status) {
       if (status == AnimationStatus.completed && mounted) {
-        _beginCaptain();
+        _beginRanger();
       }
     });
 
     _pan.forward();
   }
 
-  void _beginCaptain() {
-    setState(() => _phase = NeighborhoodCelebrationPhase.captain);
+  void _beginRanger() {
+    setState(() => _phase = BeachCelebrationPhase.ranger);
     _cinematicIn.forward();
     _castIn.forward();
-    _typeCaptainLine();
+    _typeRangerLine();
   }
 
   Matrix4 _computeCenterTransform() {
-    final Offset node = _neighborhoodMapOffset;
+    final Offset node = _beachMapOffset;
     double tx = widget.viewSize.width / 2 - node.dx;
     double ty = widget.viewSize.height / 2 - node.dy;
     tx = tx.clamp(-widget.maxPanX, 0.0);
@@ -148,35 +144,35 @@ class _NeighborhoodCelebrationOverlayState
     );
   }
 
-  void _typeCaptainLine() {
+  void _typeRangerLine() {
     setState(() {
-      _captainText = '';
-      _captainTyping = true;
+      _rangerText = '';
+      _rangerTyping = true;
     });
     int i = 0;
     Future<void>.delayed(const Duration(milliseconds: 40), () async {
-      while (i <= _captainLine.length && mounted) {
-        setState(() => _captainText = _captainLine.substring(0, i));
+      while (i <= _rangerLine.length && mounted) {
+        setState(() => _rangerText = _rangerLine.substring(0, i));
         i++;
         await Future<void>.delayed(const Duration(milliseconds: 28));
       }
-      if (mounted) setState(() => _captainTyping = false);
+      if (mounted) setState(() => _rangerTyping = false);
     });
   }
 
   void _onTap() {
     switch (_phase) {
-      case NeighborhoodCelebrationPhase.captain:
-        if (_captainTyping) {
+      case BeachCelebrationPhase.ranger:
+        if (_rangerTyping) {
           setState(() {
-            _captainText = _captainLine;
-            _captainTyping = false;
+            _rangerText = _rangerLine;
+            _rangerTyping = false;
           });
         } else {
-          setState(() => _phase = NeighborhoodCelebrationPhase.unlock);
+          setState(() => _phase = BeachCelebrationPhase.unlock);
         }
-      case NeighborhoodCelebrationPhase.unlock:
-        setState(() => _phase = NeighborhoodCelebrationPhase.done);
+      case BeachCelebrationPhase.unlock:
+        setState(() => _phase = BeachCelebrationPhase.done);
         widget.onFinished();
       default:
         break;
@@ -192,8 +188,8 @@ class _NeighborhoodCelebrationOverlayState
     super.dispose();
   }
 
-  Offset _neighborhoodScreenPosition() {
-    final Offset node = _neighborhoodMapOffset;
+  Offset _beachScreenPosition() {
+    final Offset node = _beachMapOffset;
     final Matrix4 m = widget.mapTransform.value;
     return Offset(
       node.dx + m.getTranslation().x,
@@ -206,7 +202,7 @@ class _NeighborhoodCelebrationOverlayState
     final bool compact = widget.viewSize.height < 420;
     final double w = widget.viewSize.width;
     final double h = widget.viewSize.height;
-    final Offset center = _neighborhoodScreenPosition();
+    final Offset center = _beachScreenPosition();
 
     return GestureDetector(
       onTap: _onTap,
@@ -214,7 +210,7 @@ class _NeighborhoodCelebrationOverlayState
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          if (_phase == NeighborhoodCelebrationPhase.panning)
+          if (_phase == BeachCelebrationPhase.panning)
             AnimatedBuilder(
               animation: _pan,
               builder: (BuildContext context, _) {
@@ -227,10 +223,10 @@ class _NeighborhoodCelebrationOverlayState
               animation:
                   Listenable.merge(<Listenable>[_progress, _cinematicIn]),
               builder: (BuildContext context, _) {
-                final double p = _phase == NeighborhoodCelebrationPhase.progress
+                final double p = _phase == BeachCelebrationPhase.progress
                     ? _progress.value
                     : 1.0;
-                return _NeighborhoodMapProgress(
+                return _BeachMapProgress(
                   progress: p,
                   center: center,
                   compact: compact,
@@ -258,16 +254,16 @@ class _NeighborhoodCelebrationOverlayState
       fit: StackFit.expand,
       children: <Widget>[
         Image.asset(
-          GameProgress.neighborhoodCleanBg,
+          GameProgress.beachCleanBg,
           fit: BoxFit.cover,
           width: width,
           height: height,
           filterQuality: FilterQuality.none,
         ),
         ColoredBox(color: Colors.black.withValues(alpha: 0.35)),
-        if (_phase == NeighborhoodCelebrationPhase.captain)
-          _buildCaptain(compact: compact, width: width, height: height),
-        if (_phase == NeighborhoodCelebrationPhase.unlock) ...<Widget>[
+        if (_phase == BeachCelebrationPhase.ranger)
+          _buildRanger(compact: compact, width: width, height: height),
+        if (_phase == BeachCelebrationPhase.unlock) ...<Widget>[
           const Positioned.fill(child: ConfettiOverlay()),
           _buildUnlockBanner(compact),
         ],
@@ -275,7 +271,7 @@ class _NeighborhoodCelebrationOverlayState
     );
   }
 
-  Widget _buildCaptain({
+  Widget _buildRanger({
     required bool compact,
     required double width,
     required double height,
@@ -287,11 +283,11 @@ class _NeighborhoodCelebrationOverlayState
         bottom: 10,
         child: SafeArea(
           top: false,
-          child: _MobileCaptainStack(
+          child: _MobileRangerStack(
             width: width,
-            text: _captainText,
+            text: _rangerText,
             castIn: _castIn,
-            showContinueHint: !_captainTyping,
+            showContinueHint: !_rangerTyping,
           ),
         ),
       );
@@ -310,9 +306,12 @@ class _NeighborhoodCelebrationOverlayState
               child: Opacity(opacity: t, child: child),
             );
           },
-          child: Image.asset(
-            GameProgress.barangayCutout,
-            filterQuality: FilterQuality.none,
+          child: Transform.flip(
+            flipX: true,
+            child: Image.asset(
+              GameProgress.rangerCutout,
+              filterQuality: FilterQuality.none,
+            ),
           ),
         ),
         Positioned(
@@ -322,10 +321,10 @@ class _NeighborhoodCelebrationOverlayState
           child: SafeArea(
             top: false,
             child: DialogueBox(
-              text: _captainText,
-              speakerName: 'Barangay Captain',
+              text: _rangerText,
+              speakerName: 'Marine Ranger',
               accent: _accent,
-              showContinueHint: !_captainTyping,
+              showContinueHint: !_rangerTyping,
             ),
           ),
         ),
@@ -356,13 +355,13 @@ class _NeighborhoodCelebrationOverlayState
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Icon(
-                Icons.beach_access,
+                Icons.waves,
                 color: const Color(0xFF29B6F6),
                 size: compact ? 36 : 56,
               ),
               SizedBox(height: compact ? 6 : 12),
               Text(
-                'Beach Unlocked!',
+                'Level 8 Unlocked!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
@@ -373,7 +372,7 @@ class _NeighborhoodCelebrationOverlayState
               ),
               SizedBox(height: compact ? 6 : 10),
               Text(
-                'Neighborhood Level 6 is ready',
+                'Beach Level 8 is ready',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
@@ -401,8 +400,8 @@ class _NeighborhoodCelebrationOverlayState
   }
 }
 
-class _MobileCaptainStack extends StatelessWidget {
-  const _MobileCaptainStack({
+class _MobileRangerStack extends StatelessWidget {
+  const _MobileRangerStack({
     required this.width,
     required this.text,
     required this.castIn,
@@ -435,14 +434,14 @@ class _MobileCaptainStack extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.topCenter,
                     heightFactor: 0.50,
-                    child: child,
+                    child: Transform.flip(flipX: true, child: child),
                   ),
                 ),
               ),
             );
           },
           child: Image.asset(
-            GameProgress.barangayCutout,
+            GameProgress.rangerCutout,
             width: width * 0.40,
             fit: BoxFit.fitWidth,
             alignment: Alignment.topCenter,
@@ -453,7 +452,7 @@ class _MobileCaptainStack extends StatelessWidget {
           padding: const EdgeInsets.only(top: 28),
           child: DialogueBox(
             text: text,
-            accent: const Color(0xFFEC407A),
+            accent: const Color(0xFF00838F),
             showContinueHint: showContinueHint,
             showSpeakerName: false,
           ),
@@ -462,8 +461,8 @@ class _MobileCaptainStack extends StatelessWidget {
           left: 0,
           bottom: textPanelMinH,
           child: SpeakerNameTag(
-            name: 'Barangay Captain',
-            accent: Color(0xFFEC407A),
+            name: 'Marine Ranger',
+            accent: Color(0xFF00838F),
             compact: true,
           ),
         ),
@@ -472,8 +471,8 @@ class _MobileCaptainStack extends StatelessWidget {
   }
 }
 
-class _NeighborhoodMapProgress extends StatelessWidget {
-  const _NeighborhoodMapProgress({
+class _BeachMapProgress extends StatelessWidget {
+  const _BeachMapProgress({
     required this.progress,
     required this.center,
     required this.compact,
@@ -485,18 +484,18 @@ class _NeighborhoodMapProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double trashOut = (1 - (progress / 0.18)).clamp(0.0, 1.0);
-    final double sweepIn = Curves.easeOut.transform(
+    final double trashOut = (1 - (progress / 0.2)).clamp(0.0, 1.0);
+    final double sandIn = Curves.easeOut.transform(
       ((progress - 0.15) / 0.2).clamp(0.0, 1.0),
     );
-    final double gardenIn = Curves.elasticOut.transform(
-      ((progress - 0.35) / 0.22).clamp(0.0, 1.0),
+    final double turtleIn = Curves.elasticOut.transform(
+      ((progress - 0.4) / 0.25).clamp(0.0, 1.0),
     );
-    final double lightsIn = Curves.easeOut.transform(
-      ((progress - 0.55) / 0.2).clamp(0.0, 1.0),
+    final double birdsIn = Curves.easeOut.transform(
+      ((progress - 0.65) / 0.25).clamp(0.0, 1.0),
     );
     final double smileIn = Curves.easeOut.transform(
-      ((progress - 0.75) / 0.25).clamp(0.0, 1.0),
+      ((progress - 0.85) / 0.15).clamp(0.0, 1.0),
     );
 
     final double glowR = compact ? 90.0 : 120.0;
@@ -505,21 +504,21 @@ class _NeighborhoodMapProgress extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
-          if (lightsIn > 0)
+          if (sandIn > 0)
             Positioned(
               left: center.dx - glowR,
               top: center.dy - glowR,
               width: glowR * 2,
               height: glowR * 2,
               child: Opacity(
-                opacity: lightsIn * 0.85,
-                child: DecoratedBox(
+                opacity: sandIn * 0.8,
+                child: const DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: <Color>[
-                        const Color(0xCCFFECB3),
-                        const Color(0x00FFECB3),
+                        Color(0xCC81D4FA),
+                        Color(0x0081D4FA),
                       ],
                     ),
                   ),
@@ -528,130 +527,68 @@ class _NeighborhoodMapProgress extends StatelessWidget {
             ),
           if (trashOut > 0)
             ...List<Widget>.generate(6, (int i) {
-              final double angle = i * 1.15;
-              final double dist = compact ? 48.0 : 64.0;
+              final double ang = i * (math.pi * 2 / 6);
               return Positioned(
-                left: center.dx + math.cos(angle) * dist - 14,
-                top: center.dy + math.sin(angle) * dist * 0.7 - 14,
+                left: center.dx + math.cos(ang) * 40 - 10,
+                top: center.dy + math.sin(ang) * 28 - 10,
                 child: Opacity(
                   opacity: trashOut,
                   child: Icon(
-                    i.isEven ? Icons.delete_outline : Icons.shopping_bag,
+                    Icons.delete_outline,
                     color: const Color(0xFF8D6E63),
-                    size: compact ? 22 : 28,
+                    size: compact ? 18 : 24,
                   ),
                 ),
               );
             }),
-          if (sweepIn > 0)
-            ...List<Widget>.generate(3, (int i) {
-              return Positioned(
-                left: center.dx + (i - 1) * (compact ? 36.0 : 48.0) - 12,
-                top: center.dy + (compact ? 18 : 26),
-                child: Opacity(
-                  opacity: sweepIn,
-                  child: Transform.translate(
-                    offset: Offset(0, (1 - sweepIn) * 20),
-                    child: Text(
-                      i == 1 ? '🧹' : '🧍',
-                      style: TextStyle(fontSize: compact ? 22 : 28),
-                    ),
-                  ),
+          if (turtleIn > 0)
+            Positioned(
+              left: center.dx - (compact ? 18 : 24),
+              top: center.dy + 8,
+              child: Transform.scale(
+                scale: turtleIn,
+                child: Text(
+                  '🐢',
+                  style: TextStyle(fontSize: compact ? 28 : 36),
                 ),
-              );
-            }),
-          if (gardenIn > 0)
-            ...List<Widget>.generate(6, (int i) {
-              final double angle = i * 0.9 + 0.2;
-              final double dist = (compact ? 70.0 : 95.0) * (0.55 + i * 0.05);
-              return Positioned(
-                left: center.dx + math.cos(angle) * dist - 10,
-                top: center.dy + math.sin(angle) * dist * 0.65 - 10,
-                child: Transform.scale(
-                  scale: gardenIn,
-                  child: Text(
-                    i.isEven ? '🌱' : '🌼',
-                    style: TextStyle(fontSize: compact ? 18 : 22),
-                  ),
-                ),
-              );
-            }),
-          if (lightsIn > 0)
+              ),
+            ),
+          if (birdsIn > 0)
             ...List<Widget>.generate(4, (int i) {
-              final double angle = -1.2 + i * 0.8;
-              final double dist = compact ? 78.0 : 100.0;
               return Positioned(
-                left: center.dx + math.cos(angle) * dist - 10,
-                top: center.dy + math.sin(angle) * dist * 0.45 - 28,
+                left: center.dx - 50 + i * 28.0 + birdsIn * 10,
+                top: center.dy - 55 - (i % 2) * 12.0,
                 child: Opacity(
-                  opacity: lightsIn,
+                  opacity: birdsIn,
                   child: Text(
-                    '💡',
-                    style: TextStyle(fontSize: compact ? 18 : 22),
+                    '🐦',
+                    style: TextStyle(fontSize: compact ? 16 : 20),
                   ),
                 ),
               );
             }),
           if (smileIn > 0)
             Positioned(
-              left: center.dx - (compact ? 18 : 24),
-              top: center.dy - (compact ? 10 : 14),
+              left: 0,
+              right: 0,
+              top: center.dy - (compact ? 70 : 90),
               child: Opacity(
                 opacity: smileIn,
                 child: Text(
-                  '😊',
-                  style: TextStyle(fontSize: compact ? 28 : 36),
+                  'The cleanup begins...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Jersey10',
+                    fontSize: compact ? 16 : 22,
+                    color: const Color(0xFFB3E5FC),
+                    shadows: const <Shadow>[
+                      Shadow(color: Colors.black, offset: Offset(1, 1)),
+                    ],
+                  ),
                 ),
               ),
             ),
-          if (progress > 0.05 && progress < 0.98)
-            Positioned(
-              left: 0,
-              right: 0,
-              top: compact ? 8 : 16,
-              child: Center(
-                child: _StageLabel(progress: progress, compact: compact),
-              ),
-            ),
         ],
-      ),
-    );
-  }
-}
-
-class _StageLabel extends StatelessWidget {
-  const _StageLabel({required this.progress, required this.compact});
-
-  final double progress;
-  final bool compact;
-
-  String get _label {
-    if (progress < 0.18) return 'Some garbage disappears...';
-    if (progress < 0.38) return 'Residents sweep their sidewalks!';
-    if (progress < 0.58) return 'Community gardens look healthier!';
-    if (progress < 0.78) return 'Streetlights grow brighter!';
-    return 'The Barangay Captain smiles!';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 12 : 16,
-        vertical: compact ? 5 : 7,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xCC0E0E1A),
-        border: Border.all(color: const Color(0xFFEC407A), width: 3),
-      ),
-      child: Text(
-        _label,
-        style: TextStyle(
-          fontFamily: 'Jersey10',
-          fontSize: compact ? 18 : 24,
-          height: 1,
-          color: const Color(0xFFF8BBD0),
-        ),
       ),
     );
   }

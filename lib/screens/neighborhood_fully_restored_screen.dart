@@ -7,43 +7,62 @@ import '../models/game_progress.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
-import '../widgets/mobile_mayor_dialogue_stack.dart';
 import '../widgets/pixel_button.dart';
 
-enum _RestorePhase {
-  pan,
-  life,
-  mayor,
-  clap,
-  banner,
-  done,
+enum _Phase { pan, life, dialogue, clap, banner }
+
+class _DialogueBeat {
+  const _DialogueBeat({
+    required this.speaker,
+    required this.line,
+    required this.asset,
+    required this.accent,
+  });
+
+  final String speaker;
+  final String line;
+  final String asset;
+  final Color accent;
 }
 
-/// Full park restoration cutscene after Park Level 2.
-class ParkFullyRestoredScreen extends StatefulWidget {
-  const ParkFullyRestoredScreen({super.key});
+/// Full neighborhood restoration cutscene after Neighborhood Level 6.
+class NeighborhoodFullyRestoredScreen extends StatefulWidget {
+  const NeighborhoodFullyRestoredScreen({super.key});
 
   @override
-  State<ParkFullyRestoredScreen> createState() =>
-      _ParkFullyRestoredScreenState();
+  State<NeighborhoodFullyRestoredScreen> createState() =>
+      _NeighborhoodFullyRestoredScreenState();
 }
 
-class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
+class _NeighborhoodFullyRestoredScreenState
+    extends State<NeighborhoodFullyRestoredScreen>
     with TickerProviderStateMixin {
+  static const Color _captainAccent = Color(0xFFEC407A);
   static const Color _mayorAccent = Color(0xFF3949AB);
   static const Color _border = Color(0xFF2B2B3A);
 
-  static const List<String> _lines = <String>[
-    'Look around.',
-    'Because of your hard work, our park is alive again.',
-    'The people of Green Town are grateful.',
+  static const List<_DialogueBeat> _beats = <_DialogueBeat>[
+    _DialogueBeat(
+      speaker: 'Barangay Captain',
+      line:
+          'A clean neighborhood starts with every family doing their part.',
+      asset: GameProgress.barangayCutout,
+      accent: _captainAccent,
+    ),
+    _DialogueBeat(
+      speaker: 'Mayor',
+      line:
+          "You've shown this community that small actions can make a big difference.",
+      asset: GameProgress.mayorCutout,
+      accent: _mayorAccent,
+    ),
   ];
 
   static const Duration _charTick = Duration(milliseconds: 28);
-  static const Duration _pauseBetweenLines = Duration(milliseconds: 850);
+  static const Duration _pauseBetweenLines = Duration(milliseconds: 900);
 
-  _RestorePhase _phase = _RestorePhase.pan;
-  int _lineIndex = -1;
+  _Phase _phase = _Phase.pan;
+  int _beatIndex = -1;
   String _shownText = '';
   bool _typing = false;
   bool _rewardsSaved = false;
@@ -57,11 +76,11 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
   );
   late final AnimationController _life = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 3800),
+    duration: const Duration(milliseconds: 5200),
   );
-  late final AnimationController _mayorIn = AnimationController(
+  late final AnimationController _castIn = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 700),
   );
   late final AnimationController _clap = AnimationController(
     vsync: this,
@@ -73,15 +92,15 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
     super.initState();
     _pan.addStatusListener((AnimationStatus status) {
       if (status == AnimationStatus.completed && mounted) {
-        setState(() => _phase = _RestorePhase.life);
+        setState(() => _phase = _Phase.life);
         _life.forward();
       }
     });
     _life.addStatusListener((AnimationStatus status) {
       if (status == AnimationStatus.completed && mounted) {
-        setState(() => _phase = _RestorePhase.mayor);
-        _mayorIn.forward();
-        _advanceLine();
+        setState(() => _phase = _Phase.dialogue);
+        _castIn.forward(from: 0);
+        _advanceBeat();
       }
     });
     _pan.forward();
@@ -93,23 +112,26 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
     _pauseTimer?.cancel();
     _pan.dispose();
     _life.dispose();
-    _mayorIn.dispose();
+    _castIn.dispose();
     _clap.dispose();
     super.dispose();
   }
 
-  void _advanceLine() {
+  void _advanceBeat() {
     if (!mounted) return;
-    final int next = _lineIndex + 1;
-    if (next >= _lines.length) {
-      setState(() => _phase = _RestorePhase.clap);
+    final int next = _beatIndex + 1;
+    if (next >= _beats.length) {
+      setState(() => _phase = _Phase.clap);
       _clap.forward().whenComplete(() {
         if (mounted) _showBanner();
       });
       return;
     }
-    setState(() => _lineIndex = next);
-    _typeLine(_lines[next]);
+    setState(() => _beatIndex = next);
+    if (next > 0) {
+      _castIn.forward(from: 0);
+    }
+    _typeLine(_beats[next].line);
   }
 
   void _typeLine(String full) {
@@ -123,7 +145,7 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
       if (shown >= full.length) {
         timer.cancel();
         setState(() => _typing = false);
-        _pauseTimer = Timer(_pauseBetweenLines, _advanceLine);
+        _pauseTimer = Timer(_pauseBetweenLines, _advanceBeat);
         return;
       }
       shown++;
@@ -134,32 +156,32 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
   Future<void> _showBanner() async {
     if (!_rewardsSaved) {
       _rewardsSaved = true;
-      await SaveManager.instance.completeParkLevel2();
+      await SaveManager.instance.completeNeighborhoodLevel6();
     }
     if (!mounted) return;
-    setState(() => _phase = _RestorePhase.banner);
+    setState(() => _phase = _Phase.banner);
   }
 
   void _onTap() {
     switch (_phase) {
-      case _RestorePhase.mayor:
-        if (_lineIndex < 0) return;
+      case _Phase.dialogue:
+        if (_beatIndex < 0) return;
         if (_typing) {
           _typeTimer?.cancel();
           _pauseTimer?.cancel();
           setState(() {
-            _shownText = _lines[_lineIndex];
+            _shownText = _beats[_beatIndex].line;
             _typing = false;
           });
-          _pauseTimer = Timer(_pauseBetweenLines, _advanceLine);
+          _pauseTimer = Timer(_pauseBetweenLines, _advanceBeat);
         } else {
           _pauseTimer?.cancel();
-          _advanceLine();
+          _advanceBeat();
         }
-      case _RestorePhase.clap:
+      case _Phase.clap:
         _clap.stop();
         _showBanner();
-      case _RestorePhase.banner:
+      case _Phase.banner:
         _finish();
       default:
         break;
@@ -167,8 +189,19 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
   }
 
   void _finish() {
-    setState(() => _phase = _RestorePhase.done);
+    // Stack is MainMenu → TownMap → this screen (intro/sorting/reward
+    // were pushReplacement). One pop returns to the map.
     Navigator.of(context).pop();
+  }
+
+  String _lifeCaption(double t) {
+    if (t < 0.14) return 'Roads are clean...';
+    if (t < 0.28) return 'Garbage bins are organized!';
+    if (t < 0.42) return 'Community gardens are blooming!';
+    if (t < 0.56) return 'Children are riding bicycles!';
+    if (t < 0.70) return 'Neighbors gather outside their homes!';
+    if (t < 0.84) return 'Birds and butterflies return!';
+    return 'The neighborhood feels alive again!';
   }
 
   @override
@@ -187,7 +220,6 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
             return Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                // Slow pan across the clean park.
                 AnimatedBuilder(
                   animation: _pan,
                   builder: (BuildContext context, _) {
@@ -199,7 +231,7 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
                       child: Transform.scale(
                         scale: scale,
                         child: Image.asset(
-                          GameProgress.parkCleanBg,
+                          GameProgress.neighborhoodCleanBg,
                           fit: BoxFit.cover,
                           width: w,
                           height: h,
@@ -209,14 +241,12 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
                     );
                   },
                 ),
-
-                // Life returns overlays (flowers, birds, kids, families).
-                if (_phase.index >= _RestorePhase.life.index)
+                if (_phase.index >= _Phase.life.index)
                   AnimatedBuilder(
                     animation: _life,
                     builder: (BuildContext context, _) {
-                      return _LifeReturnsOverlay(
-                        progress: _phase.index > _RestorePhase.life.index
+                      return _StreetLifeOverlay(
+                        progress: _phase.index > _Phase.life.index
                             ? 1.0
                             : _life.value,
                         compact: compact,
@@ -225,9 +255,7 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
                       );
                     },
                   ),
-
-                // Stage captions during pan / life.
-                if (_phase == _RestorePhase.pan || _phase == _RestorePhase.life)
+                if (_phase == _Phase.pan || _phase == _Phase.life)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -236,38 +264,30 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
                       bottom: false,
                       child: Center(
                         child: _CaptionChip(
-                          text: _phase == _RestorePhase.pan
-                              ? 'The park awakens...'
+                          text: _phase == _Phase.pan
+                              ? 'A celebration begins...'
                               : _lifeCaption(_life.value),
                           compact: compact,
                         ),
                       ),
                     ),
                   ),
-
-                // Mayor dialogue.
-                if (_phase == _RestorePhase.mayor && _lineIndex >= 0)
-                  _buildMayor(compact: compact, width: w, height: h),
-
-                // Townspeople clap.
-                if (_phase == _RestorePhase.clap ||
-                    _phase == _RestorePhase.banner)
+                if (_phase == _Phase.dialogue && _beatIndex >= 0)
+                  _buildSpeaker(compact: compact, width: w, height: h),
+                if (_phase == _Phase.clap || _phase == _Phase.banner)
                   AnimatedBuilder(
                     animation: _clap,
                     builder: (BuildContext context, _) {
                       return _ClapOverlay(
-                        progress: _phase == _RestorePhase.banner
-                            ? 1.0
-                            : _clap.value,
+                        progress:
+                            _phase == _Phase.banner ? 1.0 : _clap.value,
                         compact: compact,
                         width: w,
                         height: h,
                       );
                     },
                   ),
-
-                // Banner + rewards.
-                if (_phase == _RestorePhase.banner) ...<Widget>[
+                if (_phase == _Phase.banner) ...<Widget>[
                   const Positioned.fill(child: ConfettiOverlay()),
                   _buildBanner(compact),
                 ],
@@ -279,21 +299,13 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
     );
   }
 
-  String _lifeCaption(double t) {
-    if (t < 0.2) return 'All garbage disappears...';
-    if (t < 0.35) return 'Grass is bright green!';
-    if (t < 0.5) return 'Flowers bloom throughout the park!';
-    if (t < 0.65) return 'Trees look healthy!';
-    if (t < 0.78) return 'Birds return!';
-    if (t < 0.9) return 'Children laugh and play!';
-    return 'Families walk through the park!';
-  }
-
-  Widget _buildMayor({
+  Widget _buildSpeaker({
     required bool compact,
     required double width,
     required double height,
   }) {
+    final _DialogueBeat beat = _beats[_beatIndex];
+
     if (compact) {
       return Positioned(
         left: 10,
@@ -301,11 +313,13 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
         bottom: 10,
         child: SafeArea(
           top: false,
-          child: MobileMayorDialogueStack(
+          child: _MobileSpeakerStack(
             width: width,
             text: _shownText,
-            mayorIn: _mayorIn,
-            mayorAccent: _mayorAccent,
+            castIn: _castIn,
+            speakerName: beat.speaker,
+            asset: beat.asset,
+            accent: beat.accent,
             showContinueHint: !_typing,
           ),
         ),
@@ -315,21 +329,27 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
     final double spriteHeight = height * 0.72;
     return Stack(
       children: <Widget>[
+        Positioned.fill(
+          child: ColoredBox(color: Colors.black.withValues(alpha: 0.35)),
+        ),
         AnimatedBuilder(
-          animation: _mayorIn,
+          animation: _castIn,
           builder: (BuildContext context, Widget? child) {
-            final double t = Curves.easeOut.transform(_mayorIn.value);
-            // Walk in from the left toward the player.
+            final double t = Curves.easeOut.transform(_castIn.value);
             return Positioned(
-              bottom: 0,
-              left: width * (0.02 + (1 - t) * -0.18),
+              bottom: 0 - (1 - t) * 36,
+              left: width * 0.05,
               height: spriteHeight,
               child: Opacity(opacity: t, child: child),
             );
           },
-          child: Image.asset(
-            'assets/images/png/char_mayor_cutout.png',
-            filterQuality: FilterQuality.none,
+          child: Transform.flip(
+            // Captain art faces left; flip so she looks into the scene.
+            flipX: beat.asset == GameProgress.barangayCutout,
+            child: Image.asset(
+              beat.asset,
+              filterQuality: FilterQuality.none,
+            ),
           ),
         ),
         Positioned(
@@ -340,8 +360,8 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
             top: false,
             child: DialogueBox(
               text: _shownText,
-              speakerName: 'Mayor',
-              accent: _mayorAccent,
+              speakerName: beat.speaker,
+              accent: beat.accent,
               showContinueHint: !_typing,
             ),
           ),
@@ -367,10 +387,10 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
           ),
           decoration: BoxDecoration(
             color: const Color(0xF00E0E1A),
-            border: Border.all(color: const Color(0xFF4CAF50), width: 5),
+            border: Border.all(color: const Color(0xFFEC407A), width: 5),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: const Color(0xFF4CAF50).withValues(alpha: 0.4),
+                color: const Color(0xFFEC407A).withValues(alpha: 0.4),
                 blurRadius: 22,
               ),
             ],
@@ -379,11 +399,11 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                '🌳 Park Restored!',
+                '🏘️ Neighborhood Restored!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
-                  fontSize: compact ? 34 : 48,
+                  fontSize: compact ? 30 : 44,
                   height: 1,
                   color: Colors.white,
                   shadows: const <Shadow>[
@@ -396,30 +416,31 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
                 icon: Icons.monetization_on,
                 color: const Color(0xFFFFC107),
                 label: 'Bonus Coins',
-                value: '+${GameProgress.parkFullyRestoredBonusCoins}',
+                value:
+                    '+${GameProgress.neighborhoodFullyRestoredBonusCoins}',
                 compact: compact,
               ),
               SizedBox(height: compact ? 6 : 8),
               _RewardLine(
-                icon: Icons.checkroom,
-                color: const Color(0xFF66BB6A),
+                icon: Icons.pets,
+                color: const Color(0xFF8D6E63),
                 label: 'Cosmetic Unlock',
-                value: GameProgress.greenCapName,
+                value: GameProgress.petCompanionName,
                 compact: compact,
               ),
               SizedBox(height: compact ? 6 : 8),
               _RewardLine(
                 icon: Icons.star,
                 color: const Color(0xFFFFCA28),
-                label: 'Park Completion Star',
+                label: 'Neighborhood Completion Star',
                 value: '★',
                 compact: compact,
               ),
               SizedBox(height: compact ? 6 : 8),
               _RewardLine(
-                icon: Icons.school,
-                color: const Color(0xFFFFB300),
-                label: 'School District',
+                icon: Icons.beach_access,
+                color: const Color(0xFF29B6F6),
+                label: 'Beach District',
                 value: 'Unlocked!',
                 compact: compact,
               ),
@@ -428,7 +449,7 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
                 child: PixelButton(
                   label: 'Back to Map',
                   icon: Icons.map,
-                  color: const Color(0xFF4CAF50),
+                  color: const Color(0xFFEC407A),
                   width: null,
                   compact: true,
                   onPressed: _finish,
@@ -457,7 +478,7 @@ class _CaptionChip extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: const Color(0xCC0E0E1A),
-        border: Border.all(color: const Color(0xFF4CAF50), width: 3),
+        border: Border.all(color: const Color(0xFFEC407A), width: 3),
       ),
       child: Text(
         text,
@@ -465,15 +486,15 @@ class _CaptionChip extends StatelessWidget {
           fontFamily: 'Jersey10',
           fontSize: compact ? 18 : 24,
           height: 1,
-          color: const Color(0xFF9FE6A0),
+          color: const Color(0xFFFFCDD2),
         ),
       ),
     );
   }
 }
 
-class _LifeReturnsOverlay extends StatelessWidget {
-  const _LifeReturnsOverlay({
+class _StreetLifeOverlay extends StatelessWidget {
+  const _StreetLifeOverlay({
     required this.progress,
     required this.compact,
     required this.width,
@@ -487,31 +508,32 @@ class _LifeReturnsOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double trashOut = (1 - progress / 0.18).clamp(0.0, 1.0);
-    final double grassIn =
-        Curves.easeOut.transform(((progress - 0.12) / 0.25).clamp(0.0, 1.0));
-    final double flowersIn =
-        Curves.elasticOut.transform(((progress - 0.3) / 0.25).clamp(0.0, 1.0));
-    final double birdsIn =
-        Curves.easeOut.transform(((progress - 0.5) / 0.2).clamp(0.0, 1.0));
-    final double kidsIn =
-        Curves.easeOut.transform(((progress - 0.65) / 0.2).clamp(0.0, 1.0));
-    final double familiesIn =
-        Curves.easeOut.transform(((progress - 0.8) / 0.2).clamp(0.0, 1.0));
+    final double cleanGlow =
+        Curves.easeOut.transform((progress / 0.2).clamp(0.0, 1.0));
+    final double binsIn =
+        Curves.easeOut.transform(((progress - 0.15) / 0.2).clamp(0.0, 1.0));
+    final double gardensIn = Curves.elasticOut
+        .transform(((progress - 0.3) / 0.22).clamp(0.0, 1.0));
+    final double bikesIn =
+        Curves.easeOut.transform(((progress - 0.45) / 0.2).clamp(0.0, 1.0));
+    final double neighborsIn =
+        Curves.easeOut.transform(((progress - 0.6) / 0.2).clamp(0.0, 1.0));
+    final double wildlifeIn =
+        Curves.easeOut.transform(((progress - 0.75) / 0.22).clamp(0.0, 1.0));
 
     return IgnorePointer(
       child: Stack(
         children: <Widget>[
-          if (grassIn > 0)
+          if (cleanGlow > 0)
             Positioned.fill(
               child: Opacity(
-                opacity: grassIn * 0.35,
+                opacity: cleanGlow * 0.3,
                 child: const DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: RadialGradient(
                       radius: 1.1,
                       colors: <Color>[
-                        Color(0x664CAF50),
+                        Color(0x66EC407A),
                         Colors.transparent,
                       ],
                     ),
@@ -519,92 +541,74 @@ class _LifeReturnsOverlay extends StatelessWidget {
                 ),
               ),
             ),
-          if (trashOut > 0)
-            ...List<Widget>.generate(5, (int i) {
+          if (binsIn > 0)
+            ...List<Widget>.generate(3, (int i) {
               return Positioned(
-                left: width * (0.15 + i * 0.15),
-                top: height * (0.55 + (i.isEven ? 0.05 : -0.02)),
+                left: width * (0.2 + i * 0.25),
+                bottom: height * 0.22,
                 child: Opacity(
-                  opacity: trashOut,
+                  opacity: binsIn,
                   child: Icon(
-                    Icons.delete_outline,
-                    color: const Color(0xFF8D6E63),
+                    Icons.delete,
+                    color: const Color(0xFF66BB6A),
                     size: compact ? 22 : 28,
                   ),
                 ),
               );
             }),
-          if (flowersIn > 0)
-            ...List<Widget>.generate(8, (int i) {
+          if (gardensIn > 0)
+            ...List<Widget>.generate(6, (int i) {
               return Positioned(
-                left: width * (0.08 + (i % 4) * 0.22),
-                top: height * (0.42 + (i ~/ 4) * 0.18),
+                left: width * (0.1 + (i % 3) * 0.28),
+                top: height * (0.38 + (i ~/ 3) * 0.14),
                 child: Transform.scale(
-                  scale: flowersIn,
+                  scale: gardensIn,
                   child: Text(
-                    i.isEven ? '🌸' : '🌼',
+                    i.isEven ? '🌻' : '🌿',
                     style: TextStyle(fontSize: compact ? 18 : 24),
                   ),
                 ),
               );
             }),
-          if (birdsIn > 0)
-            ...List<Widget>.generate(4, (int i) {
-              final double fly = birdsIn;
-              return Positioned(
-                left: width * (0.2 + i * 0.18) + fly * 20,
-                top: height * (0.12 + i * 0.04) - fly * 10,
-                child: Opacity(
-                  opacity: birdsIn,
-                  child: Text(
-                    '🐦',
-                    style: TextStyle(fontSize: compact ? 18 : 22),
-                  ),
-                ),
-              );
-            }),
-          if (kidsIn > 0) ...<Widget>[
+          if (bikesIn > 0)
             Positioned(
-              left: width * 0.22,
+              left: width * (0.15 + bikesIn * 0.35),
               bottom: height * 0.28,
               child: Opacity(
-                opacity: kidsIn,
-                child: Text('🧒', style: TextStyle(fontSize: compact ? 28 : 36)),
-              ),
-            ),
-            Positioned(
-              left: width * 0.32,
-              bottom: height * 0.26,
-              child: Opacity(
-                opacity: kidsIn,
-                child: Text('👧', style: TextStyle(fontSize: compact ? 28 : 36)),
-              ),
-            ),
-          ],
-          if (familiesIn > 0) ...<Widget>[
-            Positioned(
-              right: width * 0.18,
-              bottom: height * 0.24,
-              child: Opacity(
-                opacity: familiesIn,
+                opacity: bikesIn,
                 child: Text(
-                  '👨‍👩‍👧',
+                  '🚴‍♂️🚲',
                   style: TextStyle(fontSize: compact ? 26 : 34),
                 ),
               ),
             ),
+          if (neighborsIn > 0)
             Positioned(
-              right: width * 0.32,
-              bottom: height * 0.22,
+              right: width * 0.12,
+              bottom: height * 0.26,
               child: Opacity(
-                opacity: familiesIn,
+                opacity: neighborsIn,
                 child: Text(
-                  '🚶',
-                  style: TextStyle(fontSize: compact ? 24 : 30),
+                  '👨‍👩‍👧💬',
+                  style: TextStyle(fontSize: compact ? 24 : 32),
                 ),
               ),
             ),
-          ],
+          if (wildlifeIn > 0)
+            ...List<Widget>.generate(5, (int i) {
+              final double fly = wildlifeIn;
+              return Positioned(
+                left: width * (0.15 + i * 0.16) + fly * 14,
+                top: height * (0.1 + (i % 3) * 0.05) - fly * 8,
+                child: Opacity(
+                  opacity: wildlifeIn,
+                  child: Text(
+                    i.isEven ? '🐦' : '🦋',
+                    style: TextStyle(fontSize: compact ? 16 : 22),
+                  ),
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -628,21 +632,17 @@ class _ClapOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: Stack(
-        children: List<Widget>.generate(7, (int i) {
-          final double angle = i * 0.9;
-          final double pulse =
-              0.85 + 0.15 * math.sin(progress * math.pi * 4 + i);
+        children: List<Widget>.generate(10, (int i) {
+          final double wave =
+              (math.sin(progress * math.pi * 4 + i) + 1) / 2;
           return Positioned(
-            left: width * 0.5 + math.cos(angle) * width * 0.28 - 12,
-            top: height * 0.55 + math.sin(angle) * height * 0.12,
+            left: width * (0.08 + (i % 5) * 0.18),
+            bottom: height * (0.18 + (i ~/ 5) * 0.12) + wave * 8,
             child: Opacity(
               opacity: progress.clamp(0.0, 1.0),
-              child: Transform.scale(
-                scale: pulse,
-                child: Text(
-                  '👏',
-                  style: TextStyle(fontSize: compact ? 22 : 28),
-                ),
+              child: Text(
+                '👏',
+                style: TextStyle(fontSize: compact ? 20 : 28),
               ),
             ),
           );
@@ -678,7 +678,8 @@ class _RewardLine extends StatelessWidget {
             label,
             style: TextStyle(
               fontFamily: 'Jersey10',
-              fontSize: compact ? 18 : 22,
+              fontSize: compact ? 16 : 20,
+              height: 1,
               color: const Color(0xFFB0BEC5),
             ),
           ),
@@ -687,8 +688,91 @@ class _RewardLine extends StatelessWidget {
           value,
           style: TextStyle(
             fontFamily: 'Jersey10',
-            fontSize: compact ? 18 : 22,
+            fontSize: compact ? 16 : 20,
+            height: 1,
             color: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MobileSpeakerStack extends StatelessWidget {
+  const _MobileSpeakerStack({
+    required this.width,
+    required this.text,
+    required this.castIn,
+    required this.speakerName,
+    required this.asset,
+    required this.accent,
+    required this.showContinueHint,
+  });
+
+  final double width;
+  final String text;
+  final Animation<double> castIn;
+  final String speakerName;
+  final String asset;
+  final Color accent;
+  final bool showContinueHint;
+
+  static const double textPanelMinH = 96;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.bottomLeft,
+      children: <Widget>[
+        AnimatedBuilder(
+          animation: castIn,
+          builder: (BuildContext context, Widget? child) {
+            final double t = Curves.easeOut.transform(castIn.value);
+            return Positioned(
+              left: 0,
+              bottom: textPanelMinH - 8,
+              width: width * 0.40,
+              child: Opacity(
+                opacity: t,
+                child: ClipRect(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    heightFactor: 0.50,
+                    // Captain faces left in art; flip to face right. Mayor already faces ok mirrored.
+                    child: Transform.flip(
+                      flipX: asset == GameProgress.barangayCutout,
+                      child: child,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+          child: Image.asset(
+            asset,
+            width: width * 0.40,
+            fit: BoxFit.fitWidth,
+            alignment: Alignment.topCenter,
+            filterQuality: FilterQuality.none,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 28),
+          child: DialogueBox(
+            text: text,
+            accent: accent,
+            showContinueHint: showContinueHint,
+            showSpeakerName: false,
+          ),
+        ),
+        Positioned(
+          left: 0,
+          bottom: textPanelMinH,
+          child: SpeakerNameTag(
+            name: speakerName,
+            accent: accent,
+            compact: true,
           ),
         ),
       ],

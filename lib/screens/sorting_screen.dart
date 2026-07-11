@@ -132,11 +132,26 @@ class _SortingScreenState extends State<SortingScreen>
 
   void _goToRewardScreen() {
     final int correctAnswers = _score;
-    final bool neighborhoodL5 = widget.locationId ==
-            GameProgress.neighborhoodLocationId &&
-        widget.levelNumber == GameProgress.neighborhoodLevel5;
-    final int bonus =
-        neighborhoodL5 ? GameProgress.neighborhoodLevel5BonusCoins : 0;
+    final bool isNeighborhood =
+        widget.locationId == GameProgress.neighborhoodLocationId;
+    final bool isBeach = widget.locationId == GameProgress.beachLocationId;
+    final bool neighborhoodL5 =
+        isNeighborhood && widget.levelNumber == GameProgress.neighborhoodLevel5;
+    final bool neighborhoodL6 =
+        isNeighborhood && widget.levelNumber == GameProgress.neighborhoodLevel6;
+    final bool beachL7 =
+        isBeach && widget.levelNumber == GameProgress.beachLevel7;
+    final bool beachL8 =
+        isBeach && widget.levelNumber == GameProgress.beachLevel8;
+    final int bonus = neighborhoodL5
+        ? GameProgress.neighborhoodLevel5BonusCoins
+        : neighborhoodL6
+            ? GameProgress.neighborhoodLevel6BonusCoins
+            : beachL7
+                ? GameProgress.beachLevel7BonusCoins
+                : beachL8
+                    ? GameProgress.beachLevel8BonusCoins
+                    : 0;
     final int coinsShown = _sessionCoins + bonus;
 
     final LevelRewardResult result = LevelRewardResult(
@@ -151,14 +166,30 @@ class _SortingScreenState extends State<SortingScreen>
       environmentalImpact: LevelRewardResult.aggregateImpacts(
         _environmentalImpact,
       ),
-      levelTitle: neighborhoodL5 ||
-              (widget.locationId == GameProgress.neighborhoodLocationId)
-          ? 'Level Complete'
-          : widget.levelTitle,
+      levelTitle: isNeighborhood || isBeach ? 'Level Complete' : widget.levelTitle,
       locationId: widget.locationId,
       levelNumber: widget.levelNumber,
       totalItems: widget.items.length,
-      rewardBadge: neighborhoodL5 ? GameProgress.ecoSafetyBadgeName : null,
+      rewardBadge: neighborhoodL5
+          ? GameProgress.ecoSafetyBadgeName
+          : neighborhoodL6
+              ? GameProgress.workGlovesName
+              : beachL7
+                  ? GameProgress.oceanGuardianBadgeName
+                  : beachL8
+                      ? GameProgress.beachHatName
+                      : null,
+      perfectBonus: (neighborhoodL6 || beachL8) && _mistakes == 0,
+      impactSectionTitle: (neighborhoodL6 || beachL8)
+          ? 'Environmental Impact Updated'
+          : 'Environmental Impact',
+      rewardIcon: neighborhoodL6
+          ? Icons.front_hand
+          : beachL8
+              ? Icons.checkroom
+              : beachL7
+                  ? Icons.waves
+                  : Icons.security,
     );
 
     Navigator.of(context).pushReplacement(
@@ -201,13 +232,20 @@ class _SortingScreenState extends State<SortingScreen>
           children: <Widget>[
             Image.asset(
               widget.backgroundAsset ??
-                  (widget.locationId == GameProgress.schoolLocationId
-                      ? (widget.levelNumber >= 4
-                          ? GameProgress.schoolCleanBg
-                          : GameProgress.schoolTrashBg)
-                      : widget.levelNumber >= 2
-                          ? GameProgress.parkCleanBg
-                          : GameProgress.parkTrashBg),
+                  (widget.locationId == GameProgress.beachLocationId
+                      ? GameProgress.beachTrashBg
+                      : widget.locationId == GameProgress.schoolLocationId
+                          ? (widget.levelNumber >= 4
+                              ? GameProgress.schoolCleanBg
+                              : GameProgress.schoolTrashBg)
+                          : widget.locationId ==
+                                  GameProgress.neighborhoodLocationId
+                              ? (widget.levelNumber >= 6
+                                  ? GameProgress.neighborhoodCleanBg
+                                  : GameProgress.neighborhoodTrashBg)
+                              : widget.levelNumber >= 2
+                                  ? GameProgress.parkCleanBg
+                                  : GameProgress.parkTrashBg),
               fit: BoxFit.cover,
               filterQuality: FilterQuality.none,
             ),

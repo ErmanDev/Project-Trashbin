@@ -144,6 +144,7 @@ class _CinematicIntroScreenState extends State<CinematicIntroScreen>
   void _onReady() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: TownMapScreen.routeName),
         builder: (BuildContext context) =>
             TownMapScreen(character: widget.character),
       ),

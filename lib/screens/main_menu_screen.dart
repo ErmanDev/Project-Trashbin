@@ -42,6 +42,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         if (!context.mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
+            settings: const RouteSettings(name: TownMapScreen.routeName),
             builder: (BuildContext context) =>
                 TownMapScreen(character: character),
           ),

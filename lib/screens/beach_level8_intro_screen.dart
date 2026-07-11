@@ -10,9 +10,9 @@ import '../widgets/dialogue_box.dart';
 import '../widgets/pixel_button.dart';
 import 'sorting_screen.dart';
 
-/// Short resident intro before Neighborhood Level 6 sorting (no puzzle).
-class NeighborhoodLevel6IntroScreen extends StatefulWidget {
-  const NeighborhoodLevel6IntroScreen({
+/// Short Marine Ranger intro before Beach Level 8 sorting (no puzzle).
+class BeachLevel8IntroScreen extends StatefulWidget {
+  const BeachLevel8IntroScreen({
     super.key,
     required this.character,
     required this.location,
@@ -22,16 +22,15 @@ class NeighborhoodLevel6IntroScreen extends StatefulWidget {
   final TownLocation location;
 
   @override
-  State<NeighborhoodLevel6IntroScreen> createState() =>
-      _NeighborhoodLevel6IntroScreenState();
+  State<BeachLevel8IntroScreen> createState() => _BeachLevel8IntroScreenState();
 }
 
-class _NeighborhoodLevel6IntroScreenState
-    extends State<NeighborhoodLevel6IntroScreen> with TickerProviderStateMixin {
-  static const Color _accent = Color(0xFFEC407A);
+class _BeachLevel8IntroScreenState extends State<BeachLevel8IntroScreen>
+    with TickerProviderStateMixin {
+  static const Color _accent = Color(0xFF00838F);
   static const List<String> _lines = <String>[
-    'Our whole neighborhood is helping now.',
-    "Let's finish the cleanup together!",
+    'Look how much cleaner the beach has become.',
+    "Let's finish restoring our coastline.",
   ];
 
   static const Duration _charTick = Duration(milliseconds: 28);
@@ -133,14 +132,14 @@ class _NeighborhoodLevel6IntroScreenState
         builder: (BuildContext context) => SortingScreen(
           character: widget.character,
           location: widget.location,
-          items: NeighborhoodSortingLevel6.items,
-          bins: NeighborhoodSortingLevel6.bins,
-          coinsPerCorrect: NeighborhoodSortingLevel6.coinsPerCorrect,
-          levelTitle: NeighborhoodSortingLevel6.levelTitle,
-          locationId: NeighborhoodSortingLevel6.locationId,
-          levelNumber: NeighborhoodSortingLevel6.levelNumber,
-          phaseLabel: 'Level 6',
-          backgroundAsset: GameProgress.neighborhoodCleanBg,
+          items: BeachSortingLevel8.items,
+          bins: BeachSortingLevel8.bins,
+          coinsPerCorrect: BeachSortingLevel8.coinsPerCorrect,
+          levelTitle: BeachSortingLevel8.levelTitle,
+          locationId: BeachSortingLevel8.locationId,
+          levelNumber: BeachSortingLevel8.levelNumber,
+          phaseLabel: 'Level 8',
+          backgroundAsset: GameProgress.beachCleanBg,
         ),
       ),
     );
@@ -152,6 +151,7 @@ class _NeighborhoodLevel6IntroScreenState
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _onTap,
+        behavior: HitTestBehavior.opaque,
         child: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints c) {
             final bool compact = c.maxHeight < 420;
@@ -163,7 +163,7 @@ class _NeighborhoodLevel6IntroScreenState
                   child: FadeTransition(
                     opacity: _fade,
                     child: Image.asset(
-                      GameProgress.neighborhoodCleanBg,
+                      GameProgress.beachCleanBg,
                       fit: BoxFit.cover,
                       filterQuality: FilterQuality.none,
                     ),
@@ -194,9 +194,12 @@ class _NeighborhoodLevel6IntroScreenState
                         child: Opacity(opacity: t, child: child),
                       );
                     },
-                    child: Image.asset(
-                      GameProgress.residentCutout,
-                      filterQuality: FilterQuality.none,
+                    child: Transform.flip(
+                      flipX: true,
+                      child: Image.asset(
+                        GameProgress.rangerCutout,
+                        filterQuality: FilterQuality.none,
+                      ),
                     ),
                   ),
                 if (_lineIndex >= 0)
@@ -213,8 +216,8 @@ class _NeighborhoodLevel6IntroScreenState
                             Center(
                               child: PixelButton(
                                 label: "Let's Sort!",
-                                icon: Icons.swap_vert,
-                                color: const Color(0xFF4CAF50),
+                                icon: Icons.waves,
+                                color: const Color(0xFF29B6F6),
                                 width: null,
                                 compact: compact,
                                 onPressed: _onStart,
@@ -223,7 +226,7 @@ class _NeighborhoodLevel6IntroScreenState
                             const SizedBox(height: 12),
                           ],
                           if (compact)
-                            _MobileResidentStack(
+                            _MobileRangerStack(
                               width: w,
                               text: _shownText,
                               castIn: _castIn,
@@ -232,7 +235,7 @@ class _NeighborhoodLevel6IntroScreenState
                           else
                             DialogueBox(
                               text: _shownText,
-                              speakerName: 'Resident',
+                              speakerName: 'Marine Ranger',
                               accent: _accent,
                               showContinueHint: !_typing && !_showReady,
                             ),
@@ -249,8 +252,8 @@ class _NeighborhoodLevel6IntroScreenState
   }
 }
 
-class _MobileResidentStack extends StatelessWidget {
-  const _MobileResidentStack({
+class _MobileRangerStack extends StatelessWidget {
+  const _MobileRangerStack({
     required this.width,
     required this.text,
     required this.castIn,
@@ -283,14 +286,14 @@ class _MobileResidentStack extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.topCenter,
                     heightFactor: 0.50,
-                    child: child,
+                    child: Transform.flip(flipX: true, child: child),
                   ),
                 ),
               ),
             );
           },
           child: Image.asset(
-            GameProgress.residentCutout,
+            GameProgress.rangerCutout,
             width: width * 0.40,
             fit: BoxFit.fitWidth,
             alignment: Alignment.topCenter,
@@ -301,7 +304,7 @@ class _MobileResidentStack extends StatelessWidget {
           padding: const EdgeInsets.only(top: 28),
           child: DialogueBox(
             text: text,
-            accent: const Color(0xFFEC407A),
+            accent: const Color(0xFF00838F),
             showContinueHint: showHint,
             showSpeakerName: false,
           ),
@@ -310,8 +313,8 @@ class _MobileResidentStack extends StatelessWidget {
           left: 0,
           bottom: textPanelMinH,
           child: SpeakerNameTag(
-            name: 'Resident',
-            accent: Color(0xFFEC407A),
+            name: 'Marine Ranger',
+            accent: Color(0xFF00838F),
             compact: true,
           ),
         ),

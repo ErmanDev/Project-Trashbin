@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/game_character.dart';
+import '../models/game_progress.dart';
 import '../models/town_location.dart';
 import '../services/audio_manager.dart';
 import '../widgets/confetti_overlay.dart';
@@ -177,6 +178,10 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
             ),
           ),
           if (_complete) ...<Widget>[
+            if (widget.location.id == GameProgress.beachLocationId)
+              const Positioned.fill(child: _BeachCompleteAmbience()),
+            if (widget.location.id == GameProgress.townCenterLocationId)
+              const Positioned.fill(child: _TownCenterCompleteAmbience()),
             Positioned.fill(child: _buildCompletePanel()),
             const Positioned.fill(child: ConfettiOverlay()),
           ],
@@ -706,6 +711,154 @@ class _BackChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Soft waves + seagulls when the Beach Level 7 puzzle is solved.
+class _BeachCompleteAmbience extends StatefulWidget {
+  const _BeachCompleteAmbience();
+
+  @override
+  State<_BeachCompleteAmbience> createState() => _BeachCompleteAmbienceState();
+}
+
+class _BeachCompleteAmbienceState extends State<_BeachCompleteAmbience>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _loop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3200),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _loop,
+        builder: (BuildContext context, _) {
+          final double t = _loop.value;
+          final Size size = MediaQuery.sizeOf(context);
+          final double wave = math.sin(t * math.pi * 2) * 6;
+          return Stack(
+            children: <Widget>[
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 18 + wave,
+                child: Opacity(
+                  opacity: 0.55,
+                  child: Text(
+                    '🌊  🌊  🌊  🌊  🌊  🌊',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: size.height < 420 ? 22 : 30,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                ),
+              ),
+              ...List<Widget>.generate(4, (int i) {
+                final double fly = (t + i * 0.22) % 1.0;
+                return Positioned(
+                  left: size.width * (-0.1 + fly * 1.2),
+                  top: size.height * (0.08 + (i % 3) * 0.05) -
+                      math.sin(fly * math.pi) * 12,
+                  child: Opacity(
+                    opacity: 0.85,
+                    child: Text(
+                      '🐦',
+                      style: TextStyle(
+                        fontSize: size.height < 420 ? 18 : 24,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Fireworks when the Town Center Level 9 puzzle is solved.
+class _TownCenterCompleteAmbience extends StatefulWidget {
+  const _TownCenterCompleteAmbience();
+
+  @override
+  State<_TownCenterCompleteAmbience> createState() =>
+      _TownCenterCompleteAmbienceState();
+}
+
+class _TownCenterCompleteAmbienceState extends State<_TownCenterCompleteAmbience>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _loop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _loop,
+        builder: (BuildContext context, _) {
+          final double t = _loop.value;
+          final Size size = MediaQuery.sizeOf(context);
+          final bool compact = size.height < 420;
+          return Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.25 + 0.15 * math.sin(t * math.pi * 2),
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        radius: 1.2,
+                        colors: <Color>[
+                          Color(0x66FFECB3),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              ...List<Widget>.generate(8, (int i) {
+                final double burst = (t + i * 0.12) % 1.0;
+                final double ang = i * (math.pi * 2 / 8);
+                final double radius = burst * (compact ? 70.0 : 110.0);
+                final double cx = size.width * (0.2 + (i % 4) * 0.2);
+                final double cy = size.height * (0.18 + (i ~/ 4) * 0.12);
+                return Positioned(
+                  left: cx + math.cos(ang) * radius - 10,
+                  top: cy + math.sin(ang) * radius - 10,
+                  child: Opacity(
+                    opacity: (1 - burst).clamp(0.0, 1.0),
+                    child: Text(
+                      i.isEven ? '🎆' : '✨',
+                      style: TextStyle(fontSize: compact ? 16 : 22),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
       ),
     );
   }

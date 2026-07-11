@@ -30,6 +30,8 @@ class SaveManager {
       'save_pending_school_celebration_coins';
   static const String _pendingNeighborhoodCelebrationKey =
       'save_pending_neighborhood_celebration';
+  static const String _pendingBeachCelebrationKey =
+      'save_pending_beach_celebration';
   static const String _parkStarKey = 'save_park_completion_star';
   static const String _schoolMaxLevelKey = 'save_school_max_level';
   static const String _schoolRestoredKey = 'save_school_restored';
@@ -37,6 +39,9 @@ class SaveManager {
   static const String _neighborhoodMaxLevelKey = 'save_neighborhood_max_level';
   static const String _neighborhoodRestoredKey = 'save_neighborhood_restored';
   static const String _neighborhoodStarKey = 'save_neighborhood_completion_star';
+  static const String _beachMaxLevelKey = 'save_beach_max_level';
+  static const String _beachRestoredKey = 'save_beach_restored';
+  static const String _beachStarKey = 'save_beach_completion_star';
 
   /// Locations the player can access from the very start of a new game.
   static const List<String> defaultUnlocked = <String>['park'];
@@ -313,8 +318,6 @@ class SaveManager {
     await addCoins(GameProgress.neighborhoodLevel5BonusCoins);
     await unlockCosmetic(GameProgress.ecoSafetyBadgeId);
     await saveTitle(GameProgress.ecoSafetyBadgeName);
-    await unlockLocation('beach');
-    await prefs.setBool(_pendingNeighborhoodCelebrationKey, true);
   }
 
   Future<bool> hasPendingNeighborhoodCelebration() async {
@@ -348,6 +351,11 @@ class SaveManager {
       GameProgress.neighborhoodLocationId,
       GameProgress.neighborhoodLevel6,
     )) {
+      // Ensure Beach stays unlocked even if an older save completed L6 first.
+      await unlockLocation(GameProgress.beachLocationId);
+      final SharedPreferences prefs = await _preferences;
+      await prefs.setBool(_neighborhoodRestoredKey, true);
+      await prefs.setBool(_neighborhoodStarKey, true);
       return;
     }
     final SharedPreferences prefs = await _preferences;
@@ -357,10 +365,108 @@ class SaveManager {
     );
     await prefs.setBool(_neighborhoodRestoredKey, true);
     await prefs.setBool(_neighborhoodStarKey, true);
+    // Session coins already earned during sorting.
+    await addCoins(GameProgress.neighborhoodLevel6BonusCoins);
     await addCoins(GameProgress.neighborhoodFullyRestoredBonusCoins);
+    await unlockCosmetic(GameProgress.workGlovesId);
+    await unlockCosmetic(GameProgress.petCompanionId);
     await unlockCosmetic(GameProgress.communityGuardianBadgeId);
     await saveTitle(GameProgress.communityGuardianTitle);
-    // Beach already unlocked after Level 5 progress celebration.
+    await unlockLocation(GameProgress.beachLocationId);
+  }
+
+  Future<void> completeBeachLevel7({required int coinsEarned}) async {
+    if (await isLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel7,
+    )) {
+      return;
+    }
+    final SharedPreferences prefs = await _preferences;
+    await markLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel7,
+    );
+    await prefs.setInt(_beachMaxLevelKey, GameProgress.beachLevel8);
+    await addCoins(GameProgress.beachLevel7BonusCoins);
+    await unlockCosmetic(GameProgress.oceanGuardianBadgeId);
+    await saveTitle(GameProgress.oceanGuardianBadgeName);
+    await prefs.setBool(_pendingBeachCelebrationKey, true);
+  }
+
+  Future<void> completeBeachLevel8({required int coinsEarned}) async {
+    if (await isLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel8,
+    )) {
+      await unlockLocation(GameProgress.townCenterLocationId);
+      final SharedPreferences prefs = await _preferences;
+      await prefs.setBool(_beachRestoredKey, true);
+      await prefs.setBool(_beachStarKey, true);
+      return;
+    }
+    final SharedPreferences prefs = await _preferences;
+    await markLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel8,
+    );
+    await prefs.setBool(_beachRestoredKey, true);
+    await prefs.setBool(_beachStarKey, true);
+    // Session coins already earned during sorting.
+    await addCoins(GameProgress.beachLevel8BonusCoins);
+    await addCoins(GameProgress.beachFullyRestoredBonusCoins);
+    await unlockCosmetic(GameProgress.beachHatId);
+    await equipHat(GameProgress.beachHatId);
+    await unlockCosmetic(GameProgress.seaTurtlePetId);
+    await saveTitle(GameProgress.beachHatName);
+    await unlockLocation(GameProgress.townCenterLocationId);
+  }
+
+  Future<bool> isBeachRestored() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getBool(_beachRestoredKey) ?? false;
+  }
+
+  Future<void> ensureBeachRestoredFlags() async {
+    final SharedPreferences prefs = await _preferences;
+    await prefs.setBool(_beachRestoredKey, true);
+    await prefs.setBool(_beachStarKey, true);
+  }
+
+  Future<bool> hasBeachCompletionStar() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getBool(_beachStarKey) ?? false;
+  }
+
+  Future<bool> hasPendingBeachCelebration() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getBool(_pendingBeachCelebrationKey) ?? false;
+  }
+
+  Future<void> clearPendingBeachCelebration() async {
+    final SharedPreferences prefs = await _preferences;
+    await prefs.remove(_pendingBeachCelebrationKey);
+  }
+
+  Future<int> loadBeachMaxLevel() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getInt(_beachMaxLevelKey) ?? GameProgress.beachLevel7;
+  }
+
+  /// Ensures Level 8 is selectable after Level 7 (fixes older saves).
+  Future<void> ensureBeachLevel8Unlocked() async {
+    if (!await isLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel7,
+    )) {
+      return;
+    }
+    final SharedPreferences prefs = await _preferences;
+    final int current =
+        prefs.getInt(_beachMaxLevelKey) ?? GameProgress.beachLevel7;
+    if (current < GameProgress.beachLevel8) {
+      await prefs.setInt(_beachMaxLevelKey, GameProgress.beachLevel8);
+    }
   }
 
   Future<void> clear() async {
@@ -379,6 +485,7 @@ class SaveManager {
     await prefs.remove(_pendingSchoolCelebrationKey);
     await prefs.remove(_pendingSchoolCelebrationCoinsKey);
     await prefs.remove(_pendingNeighborhoodCelebrationKey);
+    await prefs.remove(_pendingBeachCelebrationKey);
     await prefs.remove(_parkStarKey);
     await prefs.remove(_schoolMaxLevelKey);
     await prefs.remove(_schoolRestoredKey);
@@ -386,5 +493,8 @@ class SaveManager {
     await prefs.remove(_neighborhoodMaxLevelKey);
     await prefs.remove(_neighborhoodRestoredKey);
     await prefs.remove(_neighborhoodStarKey);
+    await prefs.remove(_beachMaxLevelKey);
+    await prefs.remove(_beachRestoredKey);
+    await prefs.remove(_beachStarKey);
   }
 }

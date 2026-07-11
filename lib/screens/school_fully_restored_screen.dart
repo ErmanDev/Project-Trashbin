@@ -138,7 +138,7 @@ class _SchoolFullyRestoredScreenState extends State<SchoolFullyRestoredScreen>
   }
 
   void _finish() {
-    Navigator.of(context).popUntil((Route<dynamic> r) => r.isFirst);
+    Navigator.of(context).pop();
   }
 
   Widget _buildPrincipal({

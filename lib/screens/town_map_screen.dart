@@ -7,6 +7,9 @@ import '../services/save_manager.dart';
 import '../widgets/park_celebration_overlay.dart';
 import '../widgets/school_celebration_overlay.dart';
 import '../widgets/neighborhood_celebration_overlay.dart';
+import '../widgets/beach_celebration_overlay.dart';
+import 'beach_intro_screen.dart';
+import 'beach_level8_intro_screen.dart';
 import 'location_screen.dart';
 import 'park_intro_screen.dart';
 import 'park_level2_intro_screen.dart';
@@ -15,8 +18,9 @@ import 'school_level4_intro_screen.dart';
 import 'neighborhood_intro_screen.dart';
 import 'neighborhood_level6_intro_screen.dart';
 import 'settings_screen.dart';
+import 'town_center_intro_screen.dart';
 
-enum _MapCelebration { none, park, school, neighborhood }
+enum _MapCelebration { none, park, school, neighborhood, beach }
 
 /// The main hub of the game: the town map.
 ///
@@ -26,6 +30,8 @@ enum _MapCelebration { none, park, school, neighborhood }
 /// is available at the start.
 class TownMapScreen extends StatefulWidget {
   const TownMapScreen({super.key, required this.character});
+
+  static const String routeName = '/town_map';
 
   final GameCharacter character;
 
@@ -49,6 +55,9 @@ class _TownMapScreenState extends State<TownMapScreen> {
   int _neighborhoodMaxLevel = GameProgress.neighborhoodLevel5;
   bool _neighborhoodRestored = false;
   bool _neighborhoodStar = false;
+  int _beachMaxLevel = GameProgress.beachLevel7;
+  bool _beachRestored = false;
+  bool _beachStar = false;
   String? _equippedHat;
   bool _loaded = false;
   bool _initialPanSet = false;
@@ -108,6 +117,26 @@ class _TownMapScreenState extends State<TownMapScreen> {
   Future<void> _load() async {
     final int coins = await SaveManager.instance.loadCoins();
     final String title = await SaveManager.instance.loadTitle();
+    final bool neighborhoodRestored =
+        await SaveManager.instance.isNeighborhoodRestored();
+    // Older saves may have restored Neighborhood before Beach unlock existed.
+    if (neighborhoodRestored) {
+      await SaveManager.instance.unlockLocation(GameProgress.beachLocationId);
+    }
+    final bool beachRestored = await SaveManager.instance.isBeachRestored();
+    final bool beachLevel8Done = await SaveManager.instance.isLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel8,
+    );
+    // Older saves may have finished Beach before Town Center unlock existed.
+    if (beachRestored || beachLevel8Done) {
+      await SaveManager.instance.unlockLocation(
+        GameProgress.townCenterLocationId,
+      );
+      if (!beachRestored) {
+        await SaveManager.instance.ensureBeachRestoredFlags();
+      }
+    }
     final Set<String> unlocked =
         await SaveManager.instance.loadUnlockedLocations();
     final int parkMaxLevel = await SaveManager.instance.loadParkMaxLevel();
@@ -118,10 +147,12 @@ class _TownMapScreenState extends State<TownMapScreen> {
     final bool schoolStar = await SaveManager.instance.hasSchoolCompletionStar();
     final int neighborhoodMaxLevel =
         await SaveManager.instance.loadNeighborhoodMaxLevel();
-    final bool neighborhoodRestored =
-        await SaveManager.instance.isNeighborhoodRestored();
     final bool neighborhoodStar =
         await SaveManager.instance.hasNeighborhoodCompletionStar();
+    final int beachMaxLevel = await SaveManager.instance.loadBeachMaxLevel();
+    final bool beachRestoredNow =
+        await SaveManager.instance.isBeachRestored();
+    final bool beachStar = await SaveManager.instance.hasBeachCompletionStar();
     final String? equippedHat = await SaveManager.instance.loadEquippedHat();
     if (!mounted) return;
     setState(() {
@@ -137,6 +168,9 @@ class _TownMapScreenState extends State<TownMapScreen> {
       _neighborhoodMaxLevel = neighborhoodMaxLevel;
       _neighborhoodRestored = neighborhoodRestored;
       _neighborhoodStar = neighborhoodStar;
+      _beachMaxLevel = beachMaxLevel;
+      _beachRestored = beachRestoredNow;
+      _beachStar = beachStar;
       _equippedHat = equippedHat;
       _loaded = true;
     });
@@ -180,6 +214,17 @@ class _TownMapScreenState extends State<TownMapScreen> {
     });
   }
 
+  Future<void> _maybeStartBeachCelebration() async {
+    if (!await SaveManager.instance.hasPendingBeachCelebration()) {
+      return;
+    }
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _celebration = _MapCelebration.beach);
+    });
+  }
+
   Future<void> _finishCelebration() async {
     if (_celebration == _MapCelebration.park) {
       await SaveManager.instance.clearPendingParkCelebration();
@@ -187,6 +232,8 @@ class _TownMapScreenState extends State<TownMapScreen> {
       await SaveManager.instance.clearPendingSchoolCelebration();
     } else if (_celebration == _MapCelebration.neighborhood) {
       await SaveManager.instance.clearPendingNeighborhoodCelebration();
+    } else if (_celebration == _MapCelebration.beach) {
+      await SaveManager.instance.clearPendingBeachCelebration();
     }
     if (!mounted) return;
     setState(() => _celebration = _MapCelebration.none);
@@ -322,6 +369,17 @@ class _TownMapScreenState extends State<TownMapScreen> {
       }
       return 'Unlocked';
     }
+    if (location.id == 'beach') {
+      if (!unlocked) return 'Locked';
+      if (_beachRestored) return 'Restored';
+      if (_beachMaxLevel >= GameProgress.beachLevel8) {
+        return 'Lv $_beachMaxLevel';
+      }
+      return 'Unlocked';
+    }
+    if (location.id == 'town_center') {
+      return unlocked ? 'Unlocked' : 'Locked';
+    }
     if (!unlocked) return 'Locked';
     return null;
   }
@@ -415,7 +473,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
                   SizedBox(height: compact ? 6 : 10),
                   _LevelPickTile(
                     label: 'Level 6',
-                    subtitle: 'Finish the neighborhood',
+                    subtitle: 'Community cleanup sorting',
                     color: const Color(0xFF7E57C2),
                     compact: compact,
                     onTap: () => Navigator.of(context)
@@ -557,6 +615,14 @@ class _TownMapScreenState extends State<TownMapScreen> {
       await _openNeighborhood(location);
       return;
     }
+    if (location.id == 'beach') {
+      await _openBeach(location);
+      return;
+    }
+    if (location.id == 'town_center') {
+      await _openTownCenter(location);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => LocationScreen(
@@ -564,6 +630,138 @@ class _TownMapScreenState extends State<TownMapScreen> {
           character: widget.character,
         ),
       ),
+    );
+  }
+
+  Future<void> _openTownCenter(TownLocation location) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => TownCenterIntroScreen(
+          location: location,
+          character: widget.character,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _load();
+  }
+
+  Future<void> _openBeach(TownLocation location) async {
+    final bool level7Done = await SaveManager.instance.isLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel7,
+    );
+
+    // After Level 7, always offer Level 7 / Level 8 (like Park & Neighborhood).
+    if (level7Done) {
+      if (_beachMaxLevel < GameProgress.beachLevel8) {
+        await SaveManager.instance.ensureBeachLevel8Unlocked();
+        if (mounted) await _load();
+      }
+      final int? picked = await _pickBeachLevel();
+      if (!mounted || picked == null) return;
+
+      if (picked == GameProgress.beachLevel8) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (BuildContext context) => BeachLevel8IntroScreen(
+              location: location,
+              character: widget.character,
+            ),
+          ),
+        );
+      } else {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (BuildContext context) => BeachIntroScreen(
+              location: location,
+              character: widget.character,
+            ),
+          ),
+        );
+        if (mounted) await _maybeStartBeachCelebration();
+      }
+      if (mounted) await _load();
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => BeachIntroScreen(
+          location: location,
+          character: widget.character,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _load();
+    await _maybeStartBeachCelebration();
+  }
+
+  Future<int?> _pickBeachLevel() async {
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        final double h = MediaQuery.sizeOf(context).height;
+        final bool compact = h < 420;
+        return Dialog(
+          backgroundColor: const Color(0xF00E0E1A),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: compact ? 24 : 40,
+            vertical: compact ? 12 : 24,
+          ),
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: _kBorder, width: 4),
+            borderRadius: BorderRadius.zero,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 320 : 360),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Choose Beach Level',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Jersey10',
+                      fontSize: compact ? 24 : 30,
+                      height: 1,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 10 : 14),
+                  _LevelPickTile(
+                    label: 'Level 7',
+                    subtitle: 'Saving the Shore',
+                    color: const Color(0xFF29B6F6),
+                    compact: compact,
+                    onTap: () =>
+                        Navigator.of(context).pop(GameProgress.beachLevel7),
+                  ),
+                  SizedBox(height: compact ? 6 : 10),
+                  _LevelPickTile(
+                    label: 'Level 8',
+                    subtitle: 'Protecting Marine Life',
+                    color: const Color(0xFF00838F),
+                    compact: compact,
+                    onTap: () =>
+                        Navigator.of(context).pop(GameProgress.beachLevel8),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -658,13 +856,16 @@ class _TownMapScreenState extends State<TownMapScreen> {
                                       (location.id == 'school' &&
                                           _schoolRestored) ||
                                       (location.id == 'neighborhood' &&
-                                          _neighborhoodRestored),
+                                          _neighborhoodRestored) ||
+                                      (location.id == 'beach' &&
+                                          _beachRestored),
                                   showStar: (location.id == 'park' &&
                                           _parkStar) ||
                                       (location.id == 'school' &&
                                           _schoolStar) ||
                                       (location.id == 'neighborhood' &&
-                                          _neighborhoodStar),
+                                          _neighborhoodStar) ||
+                                      (location.id == 'beach' && _beachStar),
                                   onTap: () => _onLocationTap(
                                     location,
                                     _unlocked.contains(location.id),
@@ -783,6 +984,15 @@ class _TownMapScreenState extends State<TownMapScreen> {
                   maxPanY: _lastMaxPanY,
                   onFinished: _finishCelebration,
                 ),
+              if (_celebration == _MapCelebration.beach)
+                BeachCelebrationOverlay(
+                  mapTransform: _mapTransform,
+                  mapSize: _lastMapSize,
+                  viewSize: _lastViewSize,
+                  maxPanX: _lastMaxPanX,
+                  maxPanY: _lastMaxPanY,
+                  onFinished: _finishCelebration,
+                ),
             ],
           );
         },
@@ -856,16 +1066,19 @@ class _ProfileBadge extends StatelessWidget {
                   ),
                 ),
                 if (equippedHat == GameProgress.ecoHatId ||
-                    equippedHat == GameProgress.greenCapId)
+                    equippedHat == GameProgress.greenCapId ||
+                    equippedHat == GameProgress.beachHatId)
                   Positioned(
                     top: compact ? -4 : -6,
                     left: 0,
                     right: 0,
                     child: Icon(
                       Icons.checkroom,
-                      color: equippedHat == GameProgress.greenCapId
-                          ? const Color(0xFF43A047)
-                          : const Color(0xFF66BB6A),
+                      color: equippedHat == GameProgress.beachHatId
+                          ? const Color(0xFF29B6F6)
+                          : equippedHat == GameProgress.greenCapId
+                              ? const Color(0xFF43A047)
+                              : const Color(0xFF66BB6A),
                       size: compact ? 18 : 22,
                     ),
                   ),

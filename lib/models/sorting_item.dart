@@ -640,7 +640,11 @@ class NeighborhoodSortingLevel5 {
   static const String locationId = 'neighborhood';
 }
 
-/// Neighborhood Level 6 — trickier sorting on the cleaner street (no puzzle).
+/// Neighborhood Level 6 — Community Cleanup sorting (no puzzle).
+///
+/// Rules kept consistent with Level 5: clean recyclables → Recycling,
+/// dirty/non-recyclable household waste → Residual (not Landfill),
+/// organics → Compost, special waste → Hazardous.
 class NeighborhoodSortingLevel6 {
   NeighborhoodSortingLevel6._();
 
@@ -648,72 +652,49 @@ class NeighborhoodSortingLevel6 {
 
   static const List<WasteItem> items = <WasteItem>[
     WasteItem(
-      id: 'n6_battery',
-      name: 'AA Battery',
-      correctBin: BinType.hazardous,
-      imageAsset: 'assets/images/png/waste_battery.png',
-      color: Color(0xFFFF7043),
-      impactLabel: 'Hazardous Waste',
-      impactKg: 1,
-      wrongBinMessages: <BinType, String>{
-        BinType.recycling:
-            'Batteries contain chemicals that can leak into the environment.\nThey should be collected as hazardous waste and disposed of safely.',
-        BinType.residual:
-            'Batteries are special waste.\nThey belong in Hazardous Waste.',
-      },
-    ),
-    WasteItem(
-      id: 'n6_wrapper',
-      name: 'Food Wrapper',
-      correctBin: BinType.residual,
-      imageAsset: 'assets/images/png/waste_food_wrapper.png',
-      color: Color(0xFFFFA726),
-      impactLabel: 'Residual Waste',
-      impactKg: 1,
-      wrongBinMessages: <BinType, String>{
-        BinType.recycling:
-            'Dirty snack wrappers usually cannot be recycled.\nThey belong in Residual.',
-      },
-    ),
-    WasteItem(
-      id: 'n6_can',
-      name: 'Aluminum Can',
+      id: 'n6_soda',
+      name: 'Soda Can',
       correctBin: BinType.recycling,
       imageAsset: 'assets/images/png/waste_aluminum_can.png',
       color: Color(0xFFB0BEC5),
       impactLabel: 'Metal Recycled',
       impactKg: 4,
-    ),
-    WasteItem(
-      id: 'n6_paint',
-      name: 'Empty Paint Can',
-      correctBin: BinType.hazardous,
-      imageAsset: 'assets/images/png/waste_paint_can.png',
-      color: Color(0xFF8D6E63),
-      impactLabel: 'Hazardous Waste',
-      impactKg: 2,
       wrongBinMessages: <BinType, String>{
-        BinType.recycling:
-            'Paint cans with leftover paint are hazardous.\nThey belong in Hazardous Waste.',
+        BinType.residual:
+            'Empty metal cans can be recycled.\nSoda cans belong in Recycling.',
+        BinType.compost:
+            'Metal does not compost.\nSoda cans belong in Recycling.',
       },
     ),
     WasteItem(
-      id: 'n6_eggshells',
-      name: 'Eggshells',
+      id: 'n6_banana',
+      name: 'Banana Peel',
       correctBin: BinType.compost,
-      imageAsset: 'assets/images/png/waste_eggshells.png',
-      color: Color(0xFFFFF8E1),
-      impactLabel: 'Compost',
+      imageAsset: 'assets/images/png/waste_banana_peel.png',
+      color: Color(0xFFFFCA28),
+      impactLabel: 'Compost Produced',
       impactKg: 2,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Food scraps are not recyclable.\nBanana peels belong in Compost.',
+        BinType.residual:
+            'Banana peels can become soil!\nThey belong in Compost.',
+      },
     ),
     WasteItem(
-      id: 'n6_bulb',
-      name: 'Broken Light Bulb',
-      correctBin: BinType.hazardous,
-      imageAsset: 'assets/images/png/waste_light_bulb.png',
-      color: Color(0xFFFFF176),
-      impactLabel: 'Hazardous Waste',
-      impactKg: 1,
+      id: 'n6_container',
+      name: 'Plastic Food Container',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_plastic_container.png',
+      color: Color(0xFF42A5F5),
+      impactLabel: 'Plastic Recycled',
+      impactKg: 3,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Clean plastic containers can be recycled.\nThey belong in Recycling.',
+        BinType.compost:
+            'Plastic does not compost.\nClean containers belong in Recycling.',
+      },
     ),
     WasteItem(
       id: 'n6_tissue',
@@ -723,44 +704,550 @@ class NeighborhoodSortingLevel6 {
       color: Color(0xFFECEFF1),
       impactLabel: 'Residual Waste',
       impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Used tissues are dirty and not recyclable.\nThey belong in Residual.',
+        BinType.compost:
+            'Used tissues may carry germs.\nThey belong in Residual.',
+      },
+    ),
+    WasteItem(
+      id: 'n6_battery',
+      name: 'Dead Battery',
+      correctBin: BinType.hazardous,
+      imageAsset: 'assets/images/png/waste_battery.png',
+      color: Color(0xFFFF7043),
+      impactLabel: 'Hazardous Waste Safely Collected',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Batteries contain chemicals that can leak into the environment.\nThey should be collected as hazardous waste and disposed of safely.',
+        BinType.residual:
+            'Dead batteries are special waste.\nThey belong in Hazardous Waste.',
+        BinType.compost:
+            'Never compost batteries!\nThey belong in Hazardous Waste.',
+      },
     ),
     WasteItem(
       id: 'n6_glass',
-      name: 'Glass Bottle',
+      name: 'Broken Glass Bottle',
       correctBin: BinType.recycling,
       imageAsset: 'assets/images/png/waste_glass_bottle.png',
       color: Color(0xFF66BB6A),
       impactLabel: 'Glass Recycled',
       impactKg: 5,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Glass bottles can be recycled.\nThey belong in Recycling.',
+        BinType.hazardous:
+            'Broken bottles without chemicals go in Recycling.\nHandle carefully, then recycle.',
+      },
     ),
     WasteItem(
-      id: 'n6_veggies',
-      name: 'Vegetable Scraps',
-      correctBin: BinType.compost,
-      imageAsset: 'assets/images/png/waste_vegetable_scraps.png',
-      color: Color(0xFF66BB6A),
-      impactLabel: 'Compost',
-      impactKg: 3,
-    ),
-    WasteItem(
-      id: 'n6_toy',
-      name: 'Broken Toy',
+      id: 'n6_phone',
+      name: 'Old Mobile Phone',
       correctBin: BinType.hazardous,
-      imageAsset: 'assets/images/png/waste_broken_toy.png',
-      color: Color(0xFFFFCA28),
-      impactLabel: 'Hazardous Waste',
+      imageAsset: 'assets/images/png/waste_mobile_phone.png',
+      color: Color(0xFF78909C),
+      impactLabel: 'Hazardous Waste Safely Collected',
       impactKg: 2,
       wrongBinMessages: <BinType, String>{
         BinType.recycling:
-            'Broken toys may have batteries or mixed parts.\nThey belong in Hazardous Waste.',
+            'Phones have batteries and circuit boards.\nOld phones belong in Hazardous Waste.',
         BinType.residual:
-            'Broken toys need special handling.\nThey belong in Hazardous Waste.',
+            'Electronics need special collection.\nOld phones belong in Hazardous Waste.',
+      },
+    ),
+    WasteItem(
+      id: 'n6_newspaper',
+      name: 'Newspaper',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_newspaper.png',
+      color: Color(0xFF90A4AE),
+      impactLabel: 'Paper Recycled',
+      impactKg: 3,
+    ),
+    WasteItem(
+      id: 'n6_coffee',
+      name: 'Coffee Grounds',
+      correctBin: BinType.compost,
+      imageAsset: 'assets/images/png/waste_coffee_grounds.png',
+      color: Color(0xFF6D4C41),
+      impactLabel: 'Compost Produced',
+      impactKg: 2,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Coffee grounds are food waste.\nThey belong in Compost.',
+        BinType.residual:
+            'Coffee grounds help make rich soil.\nThey belong in Compost.',
+      },
+    ),
+    WasteItem(
+      id: 'n6_wrapper',
+      name: 'Snack Wrapper',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_food_wrapper.png',
+      color: Color(0xFFFFA726),
+      impactLabel: 'Residual Waste',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Dirty snack wrappers usually cannot be recycled.\nThey belong in Residual.',
+        BinType.compost:
+            'Plastic wrappers do not compost.\nThey belong in Residual.',
+      },
+    ),
+    WasteItem(
+      id: 'n6_aluminum',
+      name: 'Aluminum Can',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_aluminum_can.png',
+      color: Color(0xFFB0BEC5),
+      impactLabel: 'Metal Recycled',
+      impactKg: 4,
+    ),
+  ];
+
+  static const int coinsPerCorrect = 10;
+  static const String levelTitle = 'Level 6 – Community Cleanup';
+  static const int levelNumber = 6;
+  static const String locationId = 'neighborhood';
+}
+
+/// Beach Level 7 — Phase 2 sorting (Residual, not Landfill).
+class BeachSortingLevel7 {
+  BeachSortingLevel7._();
+
+  static const List<WasteBin> bins = <WasteBin>[
+    WasteBin(
+      type: BinType.recycling,
+      label: 'Recycling',
+      imageAsset: 'assets/images/png/bin_recycling.png',
+      color: Color(0xFF1E88E5),
+    ),
+    WasteBin(
+      type: BinType.compost,
+      label: 'Compost',
+      imageAsset: 'assets/images/png/bin_compost.png',
+      color: Color(0xFF6D4C41),
+    ),
+    WasteBin(
+      type: BinType.residual,
+      label: 'Residual',
+      imageAsset: 'assets/images/png/bin_residual.png',
+      color: Color(0xFF78909C),
+    ),
+    WasteBin(
+      type: BinType.hazardous,
+      label: 'Hazardous',
+      imageAsset: 'assets/images/png/bin_hazardous.png',
+      color: Color(0xFFE53935),
+    ),
+  ];
+
+  static const List<WasteItem> items = <WasteItem>[
+    WasteItem(
+      id: 'b7_plastic_bottle',
+      name: 'Plastic Bottle',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_plastic_bottle.png',
+      color: Color(0xFF42A5F5),
+      impactLabel: 'Plastic Recycled',
+      impactKg: 5,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Clean plastic bottles can be recycled.\nThey belong in Recycling.',
+        BinType.compost:
+            'Plastic does not compost.\nPlastic bottles belong in Recycling.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_aluminum',
+      name: 'Aluminum Can',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_aluminum_can.png',
+      color: Color(0xFFB0BEC5),
+      impactLabel: 'Metal Recycled',
+      impactKg: 4,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Empty metal cans can be recycled.\nAluminum cans belong in Recycling.',
+        BinType.compost:
+            'Metal does not compost.\nAluminum cans belong in Recycling.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_coconut',
+      name: 'Coconut Shell',
+      correctBin: BinType.compost,
+      imageAsset: 'assets/images/png/waste_coconut_shell.png',
+      color: Color(0xFF8D6E63),
+      impactLabel: 'Compost Created',
+      impactKg: 3,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Coconut shells are natural material, not recyclable packaging.\nThey belong in Compost.',
+        BinType.residual:
+            'Coconut shells can break down into soil.\nThey belong in Compost.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_banana',
+      name: 'Banana Peel',
+      correctBin: BinType.compost,
+      imageAsset: 'assets/images/png/waste_banana_peel.png',
+      color: Color(0xFFFFCA28),
+      impactLabel: 'Compost Created',
+      impactKg: 2,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Food scraps are not recyclable.\nBanana peels belong in Compost.',
+        BinType.residual:
+            'Banana peels make great compost.\nThey belong in Compost.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_wrapper',
+      name: 'Dirty Food Wrapper',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_food_wrapper.png',
+      color: Color(0xFFFFA726),
+      impactLabel: 'Residual Waste',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Dirty food wrappers usually cannot be recycled.\nThey belong in Residual.',
+        BinType.compost:
+            'Plastic wrappers do not compost.\nThey belong in Residual.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_cigarette',
+      name: 'Cigarette Butt',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_cigarette_butt.png',
+      color: Color(0xFFEF9A9A),
+      impactLabel: 'Residual Waste',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Cigarette butts are not recyclable and harm the beach.\nThey belong in Residual.',
+        BinType.compost:
+            'Cigarette butts contain toxins and filters.\nThey belong in Residual.',
+        BinType.hazardous:
+            'On the beach, cigarette butts go in Residual so they do not wash into the sea.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_battery',
+      name: 'Battery',
+      correctBin: BinType.hazardous,
+      imageAsset: 'assets/images/png/waste_battery.png',
+      color: Color(0xFF66BB6A),
+      impactLabel: 'Hazardous Waste Collected',
+      impactKg: 3,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Batteries leak dangerous chemicals.\nNever recycle them with cans — use Hazardous.',
+        BinType.residual:
+            'Batteries need special handling.\nThey belong in Hazardous.',
+        BinType.compost:
+            'Batteries are toxic and never compost.\nThey belong in Hazardous.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_spray',
+      name: 'Broken Spray Can',
+      correctBin: BinType.hazardous,
+      imageAsset: 'assets/images/png/waste_spray_can.png',
+      color: Color(0xFF90A4AE),
+      impactLabel: 'Hazardous Waste Collected',
+      impactKg: 4,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Pressurized or broken spray cans are unsafe in recycling.\nThey belong in Hazardous.',
+        BinType.residual:
+            'Spray cans can still be dangerous.\nThey belong in Hazardous.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_glass',
+      name: 'Glass Bottle',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_glass_bottle.png',
+      color: Color(0xFF81D4FA),
+      impactLabel: 'Glass Recycled',
+      impactKg: 4,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Glass bottles can be recycled.\nThey belong in Recycling.',
+        BinType.compost:
+            'Glass does not compost.\nGlass bottles belong in Recycling.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_fishing_line',
+      name: 'Fishing Line',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_fishing_line.png',
+      color: Color(0xFFB0BEC5),
+      impactLabel: 'Marine Litter Removed',
+      impactKg: 2,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Fishing lines can trap turtles, birds, and fish.\nDispose of them properly in Residual to protect marine life.',
+        BinType.compost:
+            'Fishing lines can trap turtles, birds, and fish.\nDispose of them properly in Residual to protect marine life.',
+        BinType.hazardous:
+            'Fishing lines can trap turtles, birds, and fish.\nDispose of them properly in Residual to protect marine life.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_straw',
+      name: 'Plastic Straw',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_plastic_straw.png',
+      color: Color(0xFF4FC3F7),
+      impactLabel: 'Marine Litter Removed',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Thin plastic straws often cannot be recycled and harm sea life.\nThey belong in Residual.',
+        BinType.compost:
+            'Plastic straws never compost and can hurt marine animals.\nThey belong in Residual.',
+      },
+    ),
+    WasteItem(
+      id: 'b7_cardboard',
+      name: 'Cardboard Box',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_cardboard_box.png',
+      color: Color(0xFFA1887F),
+      impactLabel: 'Paper Recycled',
+      impactKg: 3,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Clean cardboard can be recycled.\nIt belongs in Recycling.',
+        BinType.compost:
+            'Clean cardboard is better recycled into new boxes.\nIt belongs in Recycling.',
       },
     ),
   ];
 
   static const int coinsPerCorrect = 10;
-  static const String levelTitle = 'Neighborhood Level 6';
-  static const int levelNumber = 6;
-  static const String locationId = 'neighborhood';
+  static const String levelTitle = 'Level 7 – Saving the Shore';
+  static const int levelNumber = 7;
+  static const String locationId = 'beach';
+}
+
+/// Beach Level 8 — sorting only (no puzzle). Residual, not Landfill.
+class BeachSortingLevel8 {
+  BeachSortingLevel8._();
+
+  static const List<WasteBin> bins = BeachSortingLevel7.bins;
+
+  static const List<WasteItem> items = <WasteItem>[
+    WasteItem(
+      id: 'b8_plastic_bottle',
+      name: 'Plastic Bottle',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_plastic_bottle.png',
+      color: Color(0xFF42A5F5),
+      impactLabel: 'Plastic Recycled',
+      impactKg: 5,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Clean plastic bottles can be recycled.\nThey belong in Recycling.',
+        BinType.compost:
+            'Plastic does not compost.\nPlastic bottles belong in Recycling.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_glass',
+      name: 'Glass Bottle',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_glass_bottle.png',
+      color: Color(0xFF81D4FA),
+      impactLabel: 'Glass Recycled',
+      impactKg: 4,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Glass bottles can be recycled.\nThey belong in Recycling.',
+        BinType.compost:
+            'Glass does not compost.\nGlass bottles belong in Recycling.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_newspaper',
+      name: 'Newspaper',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_newspaper.png',
+      color: Color(0xFFB0BEC5),
+      impactLabel: 'Paper Recycled',
+      impactKg: 3,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Clean paper can be recycled.\nNewspapers belong in Recycling.',
+        BinType.compost:
+            'Clean newspaper is better recycled.\nIt belongs in Recycling.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_orange',
+      name: 'Orange Peel',
+      correctBin: BinType.compost,
+      imageAsset: 'assets/images/png/waste_orange_peel.png',
+      color: Color(0xFFFF9800),
+      impactLabel: 'Compost Created',
+      impactKg: 2,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Food scraps are not recyclable.\nOrange peels belong in Compost.',
+        BinType.residual:
+            'Orange peels make great compost.\nThey belong in Compost.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_rice',
+      name: 'Leftover Rice',
+      correctBin: BinType.compost,
+      imageAsset: 'assets/images/png/waste_leftover_rice.png',
+      color: Color(0xFFFFF8E1),
+      impactLabel: 'Compost Created',
+      impactKg: 2,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Leftover food is not recyclable.\nRice belongs in Compost.',
+        BinType.residual:
+            'Leftover rice can become compost.\nIt belongs in Compost.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_utensils',
+      name: 'Plastic Utensils',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_plastic_utensils.png',
+      color: Color(0xFFECEFF1),
+      impactLabel: 'Marine Litter Removed',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Most plastic utensils cannot be recycled and harm sea life.\nThey belong in Residual.',
+        BinType.compost:
+            'Plastic utensils never compost.\nThey belong in Residual.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_styrofoam',
+      name: 'Styrofoam Cup',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_styrofoam_cup.png',
+      color: Color(0xFFFAFAFA),
+      impactLabel: 'Marine Litter Removed',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Styrofoam usually cannot be recycled and pollutes the ocean.\nIt belongs in Residual.',
+        BinType.compost:
+            'Styrofoam never breaks down into healthy soil.\nIt belongs in Residual.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_tissue',
+      name: 'Used Tissue',
+      correctBin: BinType.residual,
+      imageAsset: 'assets/images/png/waste_used_tissue.png',
+      color: Color(0xFFFFFDE7),
+      impactLabel: 'Residual Waste',
+      impactKg: 1,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Used tissues are too dirty to recycle.\nThey belong in Residual.',
+        BinType.compost:
+            'Used tissues are better kept out of compost bins.\nThey belong in Residual.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_battery',
+      name: 'Battery',
+      correctBin: BinType.hazardous,
+      imageAsset: 'assets/images/png/waste_battery.png',
+      color: Color(0xFF66BB6A),
+      impactLabel: 'Hazardous Waste Collected',
+      impactKg: 3,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Batteries leak dangerous chemicals.\nThey belong in Hazardous.',
+        BinType.residual:
+            'Batteries need special handling.\nThey belong in Hazardous.',
+        BinType.compost:
+            'Batteries are toxic and never compost.\nThey belong in Hazardous.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_phone',
+      name: 'Old Mobile Phone',
+      correctBin: BinType.hazardous,
+      imageAsset: 'assets/images/png/waste_mobile_phone.png',
+      color: Color(0xFF78909C),
+      impactLabel: 'Hazardous Waste Collected',
+      impactKg: 4,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Phones contain special materials and batteries.\nThey belong in Hazardous.',
+        BinType.residual:
+            'E-waste needs safe handling.\nOld phones belong in Hazardous.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_paint',
+      name: 'Paint Container',
+      correctBin: BinType.hazardous,
+      imageAsset: 'assets/images/png/waste_paint_can.png',
+      color: Color(0xFFEF5350),
+      impactLabel: 'Hazardous Waste Collected',
+      impactKg: 4,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Paint cans with leftover paint are hazardous.\nThey belong in Hazardous.',
+        BinType.residual:
+            'Paint chemicals can pollute soil and sea.\nThey belong in Hazardous.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_aluminum',
+      name: 'Aluminum Can',
+      correctBin: BinType.recycling,
+      imageAsset: 'assets/images/png/waste_aluminum_can.png',
+      color: Color(0xFFB0BEC5),
+      impactLabel: 'Metal Recycled',
+      impactKg: 4,
+      wrongBinMessages: <BinType, String>{
+        BinType.residual:
+            'Empty metal cans can be recycled.\nThey belong in Recycling.',
+        BinType.compost:
+            'Metal does not compost.\nAluminum cans belong in Recycling.',
+      },
+    ),
+    WasteItem(
+      id: 'b8_coconut',
+      name: 'Coconut Husk',
+      correctBin: BinType.compost,
+      imageAsset: 'assets/images/png/waste_coconut_shell.png',
+      color: Color(0xFF8D6E63),
+      impactLabel: 'Compost Created',
+      impactKg: 3,
+      wrongBinMessages: <BinType, String>{
+        BinType.recycling:
+            'Coconut husks are natural material, not packaging.\nThey belong in Compost.',
+        BinType.residual:
+            'Coconut husks can break down into soil.\nThey belong in Compost.',
+      },
+    ),
+  ];
+
+  static const int coinsPerCorrect = 10;
+  static const String levelTitle = 'Level 8 – Protecting Marine Life';
+  static const int levelNumber = 8;
+  static const String locationId = 'beach';
 }

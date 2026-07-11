@@ -5,6 +5,8 @@ import '../models/level_reward.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/pixel_button.dart';
+import 'beach_fully_restored_screen.dart';
+import 'neighborhood_fully_restored_screen.dart';
 import 'park_fully_restored_screen.dart';
 import 'school_fully_restored_screen.dart';
 
@@ -27,17 +29,21 @@ class RewardScreen extends StatelessWidget {
         fit: StackFit.expand,
         children: <Widget>[
           Image.asset(
-            result.locationId == GameProgress.neighborhoodLocationId
-                ? (result.levelNumber >= 6
-                    ? GameProgress.neighborhoodCleanBg
-                    : GameProgress.neighborhoodTrashBg)
-                : result.locationId == GameProgress.schoolLocationId
-                    ? (result.levelNumber >= 4
-                        ? GameProgress.schoolCleanBg
-                        : GameProgress.schoolTrashBg)
-                    : result.levelNumber >= 2
-                        ? GameProgress.parkCleanBg
-                        : GameProgress.parkTrashBg,
+            result.locationId == GameProgress.beachLocationId
+                ? (result.levelNumber >= 8
+                    ? GameProgress.beachCleanBg
+                    : GameProgress.beachTrashBg)
+                : result.locationId == GameProgress.neighborhoodLocationId
+                    ? (result.levelNumber >= 6
+                        ? GameProgress.neighborhoodCleanBg
+                        : GameProgress.neighborhoodTrashBg)
+                    : result.locationId == GameProgress.schoolLocationId
+                        ? (result.levelNumber >= 4
+                            ? GameProgress.schoolCleanBg
+                            : GameProgress.schoolTrashBg)
+                        : result.levelNumber >= 2
+                            ? GameProgress.parkCleanBg
+                            : GameProgress.parkTrashBg,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.none,
           ),
@@ -124,7 +130,7 @@ class _RewardCard extends StatelessWidget {
           SizedBox(height: compact ? 8 : 12),
           _StarRow(stars: result.stars, compact: compact),
           SizedBox(height: compact ? 12 : 18),
-          if (result.isNeighborhood)
+          if (result.usesMissionStats)
             _NeighborhoodStats(
               result: result,
               compact: compact,
@@ -147,7 +153,7 @@ class _RewardCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Environmental Impact',
+              result.impactSectionTitle,
               style: TextStyle(
                 fontFamily: 'Jersey10',
                 fontSize: sectionSize,
@@ -179,8 +185,14 @@ class _RewardCard extends StatelessWidget {
             ),
             SizedBox(height: compact ? 6 : 10),
             _RewardLine(
-              icon: Icons.security,
-              color: const Color(0xFFE53935),
+              icon: result.rewardIcon,
+              color: result.levelNumber == GameProgress.neighborhoodLevel6
+                  ? const Color(0xFF8D6E63)
+                  : result.levelNumber == GameProgress.beachLevel7
+                      ? const Color(0xFF29B6F6)
+                      : result.levelNumber == GameProgress.beachLevel8
+                          ? const Color(0xFF26A69A)
+                          : const Color(0xFFE53935),
               label: result.rewardBadge!,
               compact: compact,
             ),
@@ -238,11 +250,28 @@ class _RewardCard extends StatelessWidget {
                     );
                     if (context.mounted) Navigator.of(context).pop(true);
                   } else if (result.levelNumber == 6) {
-                    await SaveManager.instance.completeNeighborhoodLevel6();
-                    if (context.mounted) {
-                      Navigator.of(context)
-                          .popUntil((Route<dynamic> r) => r.isFirst);
-                    }
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (BuildContext context) =>
+                            const NeighborhoodFullyRestoredScreen(),
+                      ),
+                    );
+                  }
+                } else if (result.locationId == GameProgress.beachLocationId) {
+                  if (result.levelNumber == GameProgress.beachLevel7) {
+                    await SaveManager.instance.completeBeachLevel7(
+                      coinsEarned: result.coinsEarned,
+                    );
+                    if (context.mounted) Navigator.of(context).pop();
+                  } else if (result.levelNumber == GameProgress.beachLevel8) {
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (BuildContext context) =>
+                            const BeachFullyRestoredScreen(),
+                      ),
+                    );
                   }
                 }
               },
@@ -269,31 +298,57 @@ class _NeighborhoodStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: <Widget>[
-        Expanded(
-          child: _StatTile(
-            label: 'Coins Earned',
-            value: '+${result.coinsEarned}',
-            icon: Icons.monetization_on,
-            accent: const Color(0xFFFFC107),
-            labelSize: labelSize,
-            valueSize: valueSize,
-            compact: compact,
-          ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _StatTile(
+                label: 'Coins Earned',
+                value: '+${result.coinsEarned}',
+                icon: Icons.monetization_on,
+                accent: const Color(0xFFFFC107),
+                labelSize: labelSize,
+                valueSize: valueSize,
+                compact: compact,
+              ),
+            ),
+            SizedBox(width: compact ? 8 : 10),
+            Expanded(
+              child: _StatTile(
+                label: 'Correct Answers',
+                value: result.correctAnswersLabel,
+                icon: Icons.check_circle,
+                accent: const Color(0xFF66BB6A),
+                labelSize: labelSize,
+                valueSize: valueSize,
+                compact: compact,
+              ),
+            ),
+          ],
         ),
-        SizedBox(width: compact ? 8 : 10),
-        Expanded(
-          child: _StatTile(
-            label: 'Correct Answers',
-            value: result.correctAnswersLabel,
-            icon: Icons.check_circle,
-            accent: const Color(0xFF66BB6A),
-            labelSize: labelSize,
-            valueSize: valueSize,
-            compact: compact,
+        if (result.perfectBonus) ...<Widget>[
+          SizedBox(height: compact ? 6 : 8),
+          Row(
+            children: <Widget>[
+              Icon(
+                Icons.auto_awesome,
+                color: const Color(0xFFFFCA28),
+                size: compact ? 18 : 22,
+              ),
+              SizedBox(width: compact ? 6 : 8),
+              Text(
+                'Perfect Bonus',
+                style: TextStyle(
+                  fontFamily: 'Jersey10',
+                  fontSize: compact ? 16 : 20,
+                  height: 1,
+                  color: const Color(0xFFFFCA28),
+                ),
+              ),
+            ],
           ),
-        ),
+        ],
       ],
     );
   }

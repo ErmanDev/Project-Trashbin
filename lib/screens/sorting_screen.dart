@@ -12,11 +12,13 @@ import '../services/save_manager.dart';
 import '../widgets/pixel_button.dart';
 import '../widgets/sparkle_burst.dart';
 import 'reward_screen.dart';
+import 'town_fully_restored_screen.dart';
 
 /// Phase 2 mini-game: drag waste items into the correct bins.
 ///
-/// Correct sorts earn coins and score with a sparkle burst. Wrong drops (e.g.
-/// a battery in recycling) shake the screen and show a lesson popup.
+/// Correct sorts earn coins on the **first clear** only. Replays keep gameplay
+/// (sparkles, score HUD) but do not add coins. Wrong drops shake the screen
+/// and show a lesson popup.
 class SortingScreen extends StatefulWidget {
   const SortingScreen({
     super.key,
@@ -30,6 +32,7 @@ class SortingScreen extends StatefulWidget {
     this.levelNumber = ParkSortingLevel.parkLevel,
     this.phaseLabel = 'Phase 2',
     this.backgroundAsset,
+    this.endWithQuietFade = false,
   });
 
   final GameCharacter character;
@@ -42,6 +45,9 @@ class SortingScreen extends StatefulWidget {
   final int levelNumber;
   final String phaseLabel;
   final String? backgroundAsset;
+
+  /// After the last correct sort: silence music and fade the screen to white.
+  final bool endWithQuietFade;
 
   @override
   State<SortingScreen> createState() => _SortingScreenState();
@@ -57,6 +63,7 @@ class _SortingScreenState extends State<SortingScreen>
   int _sessionCoins = 0;
   int _savedCoins = 0;
   int _mistakes = 0;
+  bool _isReplay = false;
   final List<EnvironmentalImpact> _environmentalImpact = <EnvironmentalImpact>[];
   bool _showOops = false;
   String _oopsTitle = 'Oops!';
@@ -67,28 +74,41 @@ class _SortingScreenState extends State<SortingScreen>
   int _sparkleKey = 0;
   String? _floatingCoinText;
   int _floatingCoinKey = 0;
+  bool _quietEnding = false;
 
   late final AnimationController _shake = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 420),
   );
+  late final AnimationController _whiteFade = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  );
 
   @override
   void initState() {
     super.initState();
-    _loadCoins();
+    _loadProgress();
   }
 
   @override
   void dispose() {
     _shake.dispose();
+    _whiteFade.dispose();
     super.dispose();
   }
 
-  Future<void> _loadCoins() async {
+  Future<void> _loadProgress() async {
     final int coins = await SaveManager.instance.loadCoins();
+    final bool alreadyDone = await SaveManager.instance.isLevelCompleted(
+      widget.locationId,
+      widget.levelNumber,
+    );
     if (!mounted) return;
-    setState(() => _savedCoins = coins);
+    setState(() {
+      _savedCoins = coins;
+      _isReplay = alreadyDone;
+    });
   }
 
   WasteItem? get _currentItem =>
@@ -101,19 +121,31 @@ class _SortingScreenState extends State<SortingScreen>
   Future<void> _onCorrectDrop(WasteItem item, WasteBin bin) async {
     AudioManager.instance.playSnap();
     final int earned = widget.coinsPerCorrect;
-    final int newTotal = await SaveManager.instance.addCoins(earned);
+    // Re-check completion so a late _loadProgress cannot farm coins on replay.
+    final bool alreadyDone = await SaveManager.instance.isLevelCompleted(
+      widget.locationId,
+      widget.levelNumber,
+    );
+    final int newTotal = alreadyDone
+        ? _savedCoins
+        : await SaveManager.instance.addCoins(earned);
     if (!mounted) return;
 
     setState(() {
+      _isReplay = alreadyDone;
       _score++;
-      _sessionCoins += earned;
-      _savedCoins = newTotal;
+      if (!alreadyDone) {
+        _sessionCoins += earned;
+        _savedCoins = newTotal;
+        _floatingCoinText = '+$earned';
+      } else {
+        _floatingCoinText = null;
+      }
       _environmentalImpact.add(
         EnvironmentalImpact(label: item.impactLabel, kg: item.impactKg),
       );
       _sparkleKey++;
       _floatingCoinKey++;
-      _floatingCoinText = '+$earned';
       _itemIndex++;
     });
 
@@ -121,7 +153,11 @@ class _SortingScreenState extends State<SortingScreen>
     if (!mounted) return;
 
     if (_itemIndex >= widget.items.length) {
-      _goToRewardScreen();
+      if (widget.endWithQuietFade) {
+        await _beginQuietFadeToWhite();
+      } else {
+        _goToRewardScreen();
+      }
     } else {
       setState(() {
         _floatingCoinText = null;
@@ -130,11 +166,37 @@ class _SortingScreenState extends State<SortingScreen>
     }
   }
 
+  Future<void> _beginQuietFadeToWhite() async {
+    if (_quietEnding) return;
+    _quietEnding = true;
+    setState(() {
+      _floatingCoinText = null;
+      _sparkleAt = null;
+    });
+    await AudioManager.instance.stopBackgroundMusic();
+    if (!mounted) return;
+    await _whiteFade.forward();
+    if (!mounted) return;
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder<void>(
+        opaque: true,
+        pageBuilder: (BuildContext context, Animation<double> animation,
+                Animation<double> secondaryAnimation) =>
+            TownFullyRestoredScreen(character: widget.character),
+        transitionDuration: Duration.zero,
+      ),
+    );
+  }
+
   void _goToRewardScreen() {
     final int correctAnswers = _score;
     final bool isNeighborhood =
         widget.locationId == GameProgress.neighborhoodLocationId;
     final bool isBeach = widget.locationId == GameProgress.beachLocationId;
+    final bool isTownCenter =
+        widget.locationId == GameProgress.townCenterLocationId;
     final bool neighborhoodL5 =
         isNeighborhood && widget.levelNumber == GameProgress.neighborhoodLevel5;
     final bool neighborhoodL6 =
@@ -143,53 +205,81 @@ class _SortingScreenState extends State<SortingScreen>
         isBeach && widget.levelNumber == GameProgress.beachLevel7;
     final bool beachL8 =
         isBeach && widget.levelNumber == GameProgress.beachLevel8;
-    final int bonus = neighborhoodL5
-        ? GameProgress.neighborhoodLevel5BonusCoins
-        : neighborhoodL6
-            ? GameProgress.neighborhoodLevel6BonusCoins
-            : beachL7
-                ? GameProgress.beachLevel7BonusCoins
-                : beachL8
-                    ? GameProgress.beachLevel8BonusCoins
-                    : 0;
-    final int coinsShown = _sessionCoins + bonus;
+    final bool townCenterL9 =
+        isTownCenter && widget.levelNumber == GameProgress.townCenterLevel9;
+    final int bonus = _isReplay
+        ? 0
+        : neighborhoodL5
+            ? GameProgress.neighborhoodLevel5BonusCoins
+            : neighborhoodL6
+                ? GameProgress.neighborhoodLevel6BonusCoins
+                : beachL7
+                    ? GameProgress.beachLevel7BonusCoins
+                    : beachL8
+                        ? GameProgress.beachLevel8BonusCoins
+                        : townCenterL9
+                            ? GameProgress.townCenterLevel9BonusCoins
+                            : 0;
+    final int coinsShown = _isReplay ? 0 : _sessionCoins + bonus;
+    final int scoreShown = _isReplay
+        ? 0
+        : LevelRewardResult.scoreFor(
+            correctAnswers: correctAnswers,
+            mistakes: _mistakes,
+          );
 
     final LevelRewardResult result = LevelRewardResult(
-      stars: LevelRewardResult.starsForMistakes(_mistakes),
+      stars: _isReplay ? 0 : LevelRewardResult.starsForMistakes(_mistakes),
       coinsEarned: coinsShown,
-      score: LevelRewardResult.scoreFor(
-        correctAnswers: correctAnswers,
-        mistakes: _mistakes,
-      ),
+      score: scoreShown,
       correctAnswers: correctAnswers,
       mistakes: _mistakes,
       environmentalImpact: LevelRewardResult.aggregateImpacts(
         _environmentalImpact,
       ),
-      levelTitle: isNeighborhood || isBeach ? 'Level Complete' : widget.levelTitle,
+      levelTitle: isNeighborhood || isBeach || isTownCenter
+          ? 'Level Complete'
+          : widget.levelTitle,
       locationId: widget.locationId,
       levelNumber: widget.levelNumber,
       totalItems: widget.items.length,
-      rewardBadge: neighborhoodL5
-          ? GameProgress.ecoSafetyBadgeName
-          : neighborhoodL6
-              ? GameProgress.workGlovesName
+      rewardBadge: _isReplay
+          ? null
+          : neighborhoodL5
+              ? GameProgress.ecoSafetyBadgeName
+              : neighborhoodL6
+                  ? GameProgress.workGlovesName
+                  : beachL7
+                      ? GameProgress.oceanGuardianBadgeName
+                      : beachL8
+                          ? GameProgress.beachHatName
+                          : townCenterL9
+                              ? GameProgress.ecoExpertBadgeName
+                              : null,
+      rewardBadgeId: _isReplay
+          ? null
+          : neighborhoodL5
+              ? GameProgress.ecoSafetyBadgeId
               : beachL7
-                  ? GameProgress.oceanGuardianBadgeName
-                  : beachL8
-                      ? GameProgress.beachHatName
+                  ? GameProgress.oceanGuardianBadgeId
+                  : townCenterL9
+                      ? GameProgress.ecoExpertBadgeId
                       : null,
-      perfectBonus: (neighborhoodL6 || beachL8) && _mistakes == 0,
-      impactSectionTitle: (neighborhoodL6 || beachL8)
-          ? 'Environmental Impact Updated'
-          : 'Environmental Impact',
+      perfectBonus: !_isReplay && (neighborhoodL6 || beachL8) && _mistakes == 0,
+      impactSectionTitle:
+          (neighborhoodL6 || beachL8 || townCenterL9)
+              ? 'Environmental Impact Updated'
+              : 'Environmental Impact',
       rewardIcon: neighborhoodL6
           ? Icons.front_hand
           : beachL8
               ? Icons.checkroom
               : beachL7
                   ? Icons.waves
-                  : Icons.security,
+                  : townCenterL9
+                      ? Icons.workspace_premium
+                      : Icons.security,
+      isReplay: _isReplay,
     );
 
     Navigator.of(context).pushReplacement(
@@ -200,6 +290,7 @@ class _SortingScreenState extends State<SortingScreen>
   }
 
   void _onWrongDrop(WasteItem item, WasteBin bin) {
+    if (_quietEnding) return;
     _onShakeTick();
     setState(() {
       _mistakes++;
@@ -232,20 +323,22 @@ class _SortingScreenState extends State<SortingScreen>
           children: <Widget>[
             Image.asset(
               widget.backgroundAsset ??
-                  (widget.locationId == GameProgress.beachLocationId
-                      ? GameProgress.beachTrashBg
-                      : widget.locationId == GameProgress.schoolLocationId
-                          ? (widget.levelNumber >= 4
-                              ? GameProgress.schoolCleanBg
-                              : GameProgress.schoolTrashBg)
-                          : widget.locationId ==
-                                  GameProgress.neighborhoodLocationId
-                              ? (widget.levelNumber >= 6
-                                  ? GameProgress.neighborhoodCleanBg
-                                  : GameProgress.neighborhoodTrashBg)
-                              : widget.levelNumber >= 2
-                                  ? GameProgress.parkCleanBg
-                                  : GameProgress.parkTrashBg),
+                  (widget.locationId == GameProgress.townCenterLocationId
+                      ? GameProgress.townCenterTrashBg
+                      : widget.locationId == GameProgress.beachLocationId
+                          ? GameProgress.beachTrashBg
+                          : widget.locationId == GameProgress.schoolLocationId
+                              ? (widget.levelNumber >= 4
+                                  ? GameProgress.schoolCleanBg
+                                  : GameProgress.schoolTrashBg)
+                              : widget.locationId ==
+                                      GameProgress.neighborhoodLocationId
+                                  ? (widget.levelNumber >= 6
+                                      ? GameProgress.neighborhoodCleanBg
+                                      : GameProgress.neighborhoodTrashBg)
+                                  : widget.levelNumber >= 2
+                                      ? GameProgress.parkCleanBg
+                                      : GameProgress.parkTrashBg),
               fit: BoxFit.cover,
               filterQuality: FilterQuality.none,
             ),
@@ -308,6 +401,20 @@ class _SortingScreenState extends State<SortingScreen>
               ),
 
             if (_showOops) _buildOopsOverlay(),
+
+            if (_quietEnding)
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _whiteFade,
+                  builder: (BuildContext context, _) {
+                    return IgnorePointer(
+                      child: ColoredBox(
+                        color: Colors.white.withValues(alpha: _whiteFade.value),
+                      ),
+                    );
+                  },
+                ),
+              ),
           ],
         ),
       ),

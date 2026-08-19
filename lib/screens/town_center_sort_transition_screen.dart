@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 
 import '../models/game_character.dart';
 import '../models/game_progress.dart';
+import '../models/sorting_item.dart';
 import '../models/town_location.dart';
 import '../widgets/dialogue_box.dart';
 import '../widgets/mobile_mayor_dialogue_stack.dart';
 import '../widgets/pixel_button.dart';
-import 'location_screen.dart';
+import 'sorting_screen.dart';
 
-/// Bridge after Town Center Level 9 puzzle — leads into final sorting (next).
+/// Bridge after Town Center Level 9 puzzle — leads into Phase 2 sorting.
 class TownCenterSortTransitionScreen extends StatefulWidget {
   const TownCenterSortTransitionScreen({
     super.key,
@@ -120,12 +121,19 @@ class _TownCenterSortTransitionScreenState
   }
 
   void _onStart() {
-    // Level 9 sorting arrives next.
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => LocationScreen(
-          location: widget.location,
+        builder: (BuildContext context) => SortingScreen(
           character: widget.character,
+          location: widget.location,
+          items: TownCenterSortingLevel9.items,
+          bins: TownCenterSortingLevel9.bins,
+          coinsPerCorrect: TownCenterSortingLevel9.coinsPerCorrect,
+          levelTitle: TownCenterSortingLevel9.levelTitle,
+          locationId: TownCenterSortingLevel9.locationId,
+          levelNumber: TownCenterSortingLevel9.levelNumber,
+          phaseLabel: 'Level 9 · Phase 2',
+          backgroundAsset: GameProgress.townCenterTrashBg,
         ),
       ),
     );

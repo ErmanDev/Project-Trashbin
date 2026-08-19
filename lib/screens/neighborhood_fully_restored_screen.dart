@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_progress.dart';
+import '../services/audio_manager.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
@@ -122,6 +121,7 @@ class _NeighborhoodFullyRestoredScreenState
     final int next = _beatIndex + 1;
     if (next >= _beats.length) {
       setState(() => _phase = _Phase.clap);
+      AudioManager.instance.playApplause();
       _clap.forward().whenComplete(() {
         if (mounted) _showBanner();
       });
@@ -399,7 +399,7 @@ class _NeighborhoodFullyRestoredScreenState
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                '🏘️ Neighborhood Restored!',
+                'Neighborhood Restored!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
@@ -510,16 +510,6 @@ class _StreetLifeOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final double cleanGlow =
         Curves.easeOut.transform((progress / 0.2).clamp(0.0, 1.0));
-    final double binsIn =
-        Curves.easeOut.transform(((progress - 0.15) / 0.2).clamp(0.0, 1.0));
-    final double gardensIn = Curves.elasticOut
-        .transform(((progress - 0.3) / 0.22).clamp(0.0, 1.0));
-    final double bikesIn =
-        Curves.easeOut.transform(((progress - 0.45) / 0.2).clamp(0.0, 1.0));
-    final double neighborsIn =
-        Curves.easeOut.transform(((progress - 0.6) / 0.2).clamp(0.0, 1.0));
-    final double wildlifeIn =
-        Curves.easeOut.transform(((progress - 0.75) / 0.22).clamp(0.0, 1.0));
 
     return IgnorePointer(
       child: Stack(
@@ -541,74 +531,6 @@ class _StreetLifeOverlay extends StatelessWidget {
                 ),
               ),
             ),
-          if (binsIn > 0)
-            ...List<Widget>.generate(3, (int i) {
-              return Positioned(
-                left: width * (0.2 + i * 0.25),
-                bottom: height * 0.22,
-                child: Opacity(
-                  opacity: binsIn,
-                  child: Icon(
-                    Icons.delete,
-                    color: const Color(0xFF66BB6A),
-                    size: compact ? 22 : 28,
-                  ),
-                ),
-              );
-            }),
-          if (gardensIn > 0)
-            ...List<Widget>.generate(6, (int i) {
-              return Positioned(
-                left: width * (0.1 + (i % 3) * 0.28),
-                top: height * (0.38 + (i ~/ 3) * 0.14),
-                child: Transform.scale(
-                  scale: gardensIn,
-                  child: Text(
-                    i.isEven ? '🌻' : '🌿',
-                    style: TextStyle(fontSize: compact ? 18 : 24),
-                  ),
-                ),
-              );
-            }),
-          if (bikesIn > 0)
-            Positioned(
-              left: width * (0.15 + bikesIn * 0.35),
-              bottom: height * 0.28,
-              child: Opacity(
-                opacity: bikesIn,
-                child: Text(
-                  '🚴‍♂️🚲',
-                  style: TextStyle(fontSize: compact ? 26 : 34),
-                ),
-              ),
-            ),
-          if (neighborsIn > 0)
-            Positioned(
-              right: width * 0.12,
-              bottom: height * 0.26,
-              child: Opacity(
-                opacity: neighborsIn,
-                child: Text(
-                  '👨‍👩‍👧💬',
-                  style: TextStyle(fontSize: compact ? 24 : 32),
-                ),
-              ),
-            ),
-          if (wildlifeIn > 0)
-            ...List<Widget>.generate(5, (int i) {
-              final double fly = wildlifeIn;
-              return Positioned(
-                left: width * (0.15 + i * 0.16) + fly * 14,
-                top: height * (0.1 + (i % 3) * 0.05) - fly * 8,
-                child: Opacity(
-                  opacity: wildlifeIn,
-                  child: Text(
-                    i.isEven ? '🐦' : '🦋',
-                    style: TextStyle(fontSize: compact ? 16 : 22),
-                  ),
-                ),
-              );
-            }),
         ],
       ),
     );
@@ -629,27 +551,7 @@ class _ClapOverlay extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        children: List<Widget>.generate(10, (int i) {
-          final double wave =
-              (math.sin(progress * math.pi * 4 + i) + 1) / 2;
-          return Positioned(
-            left: width * (0.08 + (i % 5) * 0.18),
-            bottom: height * (0.18 + (i ~/ 5) * 0.12) + wave * 8,
-            child: Opacity(
-              opacity: progress.clamp(0.0, 1.0),
-              child: Text(
-                '👏',
-                style: TextStyle(fontSize: compact ? 20 : 28),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 class _RewardLine extends StatelessWidget {

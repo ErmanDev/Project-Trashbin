@@ -1,9 +1,8 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_progress.dart';
 import '../models/town_location.dart';
+import '../services/audio_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
 import '../widgets/pixel_button.dart';
@@ -52,6 +51,7 @@ class _SchoolCelebrationOverlayState extends State<SchoolCelebrationOverlay>
   SchoolCelebrationPhase _phase = SchoolCelebrationPhase.panning;
   String _principalText = '';
   bool _principalTyping = false;
+  bool _applausePlayed = false;
 
   late final AnimationController _pan = AnimationController(
     vsync: this,
@@ -114,8 +114,15 @@ class _SchoolCelebrationOverlayState extends State<SchoolCelebrationOverlay>
         _beginPrincipalCinematic();
       }
     });
+    _restore.addListener(_maybePlayApplause);
 
     _pan.forward();
+  }
+
+  void _maybePlayApplause() {
+    if (_applausePlayed || _restore.value < 0.78) return;
+    _applausePlayed = true;
+    AudioManager.instance.playApplause();
   }
 
   void _beginPrincipalCinematic() {
@@ -550,20 +557,9 @@ class _SchoolMapRestoration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double trashOut = (1 - (progress / 0.22)).clamp(0.0, 1.0);
     final double cleanIn = Curves.easeOut.transform(
       ((progress - 0.15) / 0.30).clamp(0.0, 1.0),
     );
-    final double booksIn = Curves.elasticOut.transform(
-      ((progress - 0.40) / 0.22).clamp(0.0, 1.0),
-    );
-    final double kidsIn = Curves.easeOut.transform(
-      ((progress - 0.58) / 0.20).clamp(0.0, 1.0),
-    );
-    final double clapIn = Curves.easeOut.transform(
-      ((progress - 0.75) / 0.25).clamp(0.0, 1.0),
-    );
-
     final double glowR = compact ? 90.0 : 120.0;
 
     return IgnorePointer(
@@ -591,85 +587,6 @@ class _SchoolMapRestoration extends StatelessWidget {
                 ),
               ),
             ),
-          if (trashOut > 0)
-            ..._scatter(6, (int i) {
-              final double angle = i * 1.15;
-              final double dist = compact ? 48.0 : 64.0;
-              return Positioned(
-                left: center.dx + math.cos(angle) * dist - 14,
-                top: center.dy + math.sin(angle) * dist * 0.7 - 14,
-                child: Opacity(
-                  opacity: trashOut,
-                  child: Icon(
-                    i.isEven ? Icons.delete_outline : Icons.lunch_dining,
-                    color: const Color(0xFF8D6E63),
-                    size: compact ? 24 : 28,
-                  ),
-                ),
-              );
-            }),
-          if (booksIn > 0)
-            ..._scatter(8, (int i) {
-              final double angle = i * 0.78 + 0.3;
-              final double dist = (compact ? 70.0 : 95.0) * (0.6 + i * 0.05);
-              return Positioned(
-                left: center.dx + math.cos(angle) * dist - 10,
-                top: center.dy + math.sin(angle) * dist * 0.65 - 10,
-                child: Transform.scale(
-                  scale: booksIn,
-                  child: Text(
-                    i % 3 == 0 ? '📚' : (i % 3 == 1 ? '✏️' : '🎒'),
-                    style: TextStyle(fontSize: compact ? 18 : 22, height: 1),
-                  ),
-                ),
-              );
-            }),
-          if (kidsIn > 0) ...<Widget>[
-            Positioned(
-              left: center.dx - (compact ? 55 : 72),
-              top: center.dy + (compact ? 20 : 28),
-              child: Opacity(
-                opacity: kidsIn,
-                child: Transform.translate(
-                  offset: Offset(0, (1 - kidsIn) * 24),
-                  child: Text(
-                    '🧒',
-                    style: TextStyle(fontSize: compact ? 26 : 32),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: center.dx + (compact ? 30 : 42),
-              top: center.dy + (compact ? 24 : 32),
-              child: Opacity(
-                opacity: kidsIn,
-                child: Transform.translate(
-                  offset: Offset(0, (1 - kidsIn) * 28),
-                  child: Text(
-                    '👧',
-                    style: TextStyle(fontSize: compact ? 26 : 32),
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (clapIn > 0)
-            ..._scatter(5, (int i) {
-              final double angle = i * 1.25 - 1.2;
-              final double dist = compact ? 85.0 : 110.0;
-              return Positioned(
-                left: center.dx + math.cos(angle) * dist - 11,
-                top: center.dy + math.sin(angle) * dist * 0.5 - 30,
-                child: Opacity(
-                  opacity: clapIn,
-                  child: Transform.scale(
-                    scale: 0.85 + 0.15 * math.sin(clapIn * math.pi * 3 + i),
-                    child: const Text('👏', style: TextStyle(fontSize: 22)),
-                  ),
-                ),
-              );
-            }),
           if (progress > 0.05 && progress < 0.98)
             Positioned(
               left: 0,
@@ -682,10 +599,6 @@ class _SchoolMapRestoration extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  List<Widget> _scatter(int count, Widget Function(int index) builder) {
-    return List<Widget>.generate(count, builder);
   }
 }
 

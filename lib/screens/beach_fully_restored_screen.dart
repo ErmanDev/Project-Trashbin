@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_progress.dart';
+import '../services/audio_manager.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
@@ -119,6 +118,7 @@ class _BeachFullyRestoredScreenState extends State<BeachFullyRestoredScreen>
     final int next = _beatIndex + 1;
     if (next >= _beats.length) {
       setState(() => _phase = _Phase.clap);
+      AudioManager.instance.playApplause();
       _clap.forward().whenComplete(() {
         if (mounted) _showBanner();
       });
@@ -396,7 +396,7 @@ class _BeachFullyRestoredScreenState extends State<BeachFullyRestoredScreen>
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                '🏖️ Beach Restored!',
+                'Beach Restored!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
@@ -506,18 +506,6 @@ class _ShoreLifeOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final double waterIn =
         Curves.easeOut.transform((progress / 0.18).clamp(0.0, 1.0));
-    final double sandIn =
-        Curves.easeOut.transform(((progress - 0.12) / 0.18).clamp(0.0, 1.0));
-    final double palmsIn = Curves.elasticOut
-        .transform(((progress - 0.28) / 0.18).clamp(0.0, 1.0));
-    final double turtleIn =
-        Curves.easeOut.transform(((progress - 0.42) / 0.18).clamp(0.0, 1.0));
-    final double fishIn =
-        Curves.easeOut.transform(((progress - 0.55) / 0.15).clamp(0.0, 1.0));
-    final double familiesIn =
-        Curves.easeOut.transform(((progress - 0.68) / 0.18).clamp(0.0, 1.0));
-    final double volunteersIn =
-        Curves.easeOut.transform(((progress - 0.82) / 0.18).clamp(0.0, 1.0));
 
     return IgnorePointer(
       child: Stack(
@@ -536,84 +524,6 @@ class _ShoreLifeOverlay extends StatelessWidget {
                       ],
                     ),
                   ),
-                ),
-              ),
-            ),
-          if (sandIn > 0)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: height * 0.18,
-              child: Opacity(
-                opacity: sandIn,
-                child: Text(
-                  '✨  ✨  ✨',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: compact ? 18 : 24),
-                ),
-              ),
-            ),
-          if (palmsIn > 0)
-            ...List<Widget>.generate(3, (int i) {
-              return Positioned(
-                left: width * (0.15 + i * 0.3),
-                top: height * 0.22,
-                child: Transform.scale(
-                  scale: palmsIn,
-                  child: Text(
-                    '🌴',
-                    style: TextStyle(fontSize: compact ? 28 : 36),
-                  ),
-                ),
-              );
-            }),
-          if (turtleIn > 0)
-            Positioned(
-              left: width * (0.2 + turtleIn * 0.25),
-              bottom: height * 0.26,
-              child: Opacity(
-                opacity: turtleIn,
-                child: Text(
-                  '🐢🐢',
-                  style: TextStyle(fontSize: compact ? 26 : 34),
-                ),
-              ),
-            ),
-          if (fishIn > 0)
-            ...List<Widget>.generate(4, (int i) {
-              return Positioned(
-                left: width * (0.35 + i * 0.12),
-                bottom: height * (0.32 + (i % 2) * 0.04),
-                child: Opacity(
-                  opacity: fishIn,
-                  child: Text(
-                    '🐟',
-                    style: TextStyle(fontSize: compact ? 16 : 22),
-                  ),
-                ),
-              );
-            }),
-          if (familiesIn > 0)
-            Positioned(
-              right: width * 0.12,
-              bottom: height * 0.24,
-              child: Opacity(
-                opacity: familiesIn,
-                child: Text(
-                  '👨‍👩‍👧🏖️',
-                  style: TextStyle(fontSize: compact ? 24 : 32),
-                ),
-              ),
-            ),
-          if (volunteersIn > 0)
-            Positioned(
-              left: width * 0.1,
-              bottom: height * 0.22,
-              child: Opacity(
-                opacity: volunteersIn,
-                child: Text(
-                  '🧹🙋‍♂️',
-                  style: TextStyle(fontSize: compact ? 22 : 28),
                 ),
               ),
             ),
@@ -637,27 +547,7 @@ class _ClapOverlay extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        children: List<Widget>.generate(10, (int i) {
-          final double wave =
-              (math.sin(progress * math.pi * 4 + i) + 1) / 2;
-          return Positioned(
-            left: width * (0.08 + (i % 5) * 0.18),
-            bottom: height * (0.18 + (i ~/ 5) * 0.12) + wave * 8,
-            child: Opacity(
-              opacity: progress.clamp(0.0, 1.0),
-              child: Text(
-                '👏',
-                style: TextStyle(fontSize: compact ? 20 : 28),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 class _RewardLine extends StatelessWidget {

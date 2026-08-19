@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../models/cosmetic_item.dart';
 import '../models/game_character.dart';
 import '../models/game_progress.dart';
 import '../models/town_location.dart';
+import '../navigation/app_route_observer.dart';
 import '../services/save_manager.dart';
 import '../widgets/park_celebration_overlay.dart';
 import '../widgets/school_celebration_overlay.dart';
 import '../widgets/neighborhood_celebration_overlay.dart';
 import '../widgets/beach_celebration_overlay.dart';
+import '../widgets/town_center_celebration_overlay.dart';
+import 'awards_screen.dart';
 import 'beach_intro_screen.dart';
 import 'beach_level8_intro_screen.dart';
 import 'location_screen.dart';
@@ -18,14 +22,16 @@ import 'school_level4_intro_screen.dart';
 import 'neighborhood_intro_screen.dart';
 import 'neighborhood_level6_intro_screen.dart';
 import 'settings_screen.dart';
+import 'shop_screen.dart';
 import 'town_center_intro_screen.dart';
+import 'town_center_level10_intro_screen.dart';
 
-enum _MapCelebration { none, park, school, neighborhood, beach }
+enum _MapCelebration { none, park, school, neighborhood, beach, townCenter }
 
 /// The main hub of the game: the town map.
 ///
-/// Shows the coins / title / profile HUD, the action buttons (Customization,
-/// Shop, Achievements, Settings) and the five location nodes. Locked locations
+/// Shows the coins / title / profile HUD, the action buttons (Shop,
+/// Achievements, Settings) and the five location nodes. Locked locations
 /// are disabled until the player unlocks them through progress; only the Park
 /// is available at the start.
 class TownMapScreen extends StatefulWidget {
@@ -39,7 +45,8 @@ class TownMapScreen extends StatefulWidget {
   State<TownMapScreen> createState() => _TownMapScreenState();
 }
 
-class _TownMapScreenState extends State<TownMapScreen> {
+class _TownMapScreenState extends State<TownMapScreen>
+    with RouteAware, TickerProviderStateMixin {
   static const double _mapAspect = 1536 / 1024; // town_map_bg.png
   static const Color _mapEdgeColor = Color(0xFF5A8F4A);
 
@@ -58,11 +65,16 @@ class _TownMapScreenState extends State<TownMapScreen> {
   int _beachMaxLevel = GameProgress.beachLevel7;
   bool _beachRestored = false;
   bool _beachStar = false;
+  int _townCenterMaxLevel = GameProgress.townCenterLevel9;
   String? _equippedHat;
   bool _loaded = false;
   bool _initialPanSet = false;
+  bool _handlingReturn = false;
   _MapCelebration _celebration = _MapCelebration.none;
   int _celebrationCoins = 0;
+  /// After finishing both levels at a location, highlight this node on the map.
+  String? _guidingLocationId;
+  bool _guideCameraMoving = false;
 
   Size _lastViewSize = Size.zero;
   Size _lastMapSize = Size.zero;
@@ -70,6 +82,9 @@ class _TownMapScreenState extends State<TownMapScreen> {
   double _lastMaxPanY = 0;
 
   final TransformationController _mapTransform = TransformationController();
+  AnimationController? _guidePan;
+  Matrix4? _guidePanStart;
+  Matrix4? _guidePanEnd;
 
   @override
   void initState() {
@@ -78,9 +93,130 @@ class _TownMapScreenState extends State<TownMapScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ModalRoute<void>? route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
+    _guidePan?.dispose();
     _mapTransform.dispose();
     super.dispose();
+  }
+
+  /// Level flows use [Navigator.pushReplacement], so the map's push Future
+  /// finishes early. When the player finally returns, refresh progress here.
+  @override
+  void didPopNext() {
+    _onReturnedToMap();
+  }
+
+  Future<void> _onReturnedToMap() async {
+    if (!mounted ||
+        _handlingReturn ||
+        _celebration != _MapCelebration.none ||
+        _guidingLocationId != null) {
+      return;
+    }
+    _handlingReturn = true;
+    String? nextLocationId;
+    try {
+      await _load();
+      if (!mounted) return;
+      await _startAnyPendingCelebration();
+      if (!mounted || _celebration != _MapCelebration.none) return;
+      nextLocationId = await SaveManager.instance.consumePendingNextLocation();
+    } finally {
+      _handlingReturn = false;
+    }
+    if (nextLocationId == null || !mounted) return;
+    await _startLocationGuide(nextLocationId);
+  }
+
+  Future<void> _startAnyPendingCelebration() async {
+    await _maybeStartParkCelebration();
+    if (_celebration != _MapCelebration.none) return;
+    await _maybeStartSchoolCelebration();
+    if (_celebration != _MapCelebration.none) return;
+    await _maybeStartNeighborhoodCelebration();
+    if (_celebration != _MapCelebration.none) return;
+    await _maybeStartBeachCelebration();
+    if (_celebration != _MapCelebration.none) return;
+    await _maybeStartTownCenterCelebration();
+  }
+
+  Future<void> _startLocationGuide(String locationId) async {
+    final bool exists =
+        TownLocation.all.any((TownLocation l) => l.id == locationId);
+    if (!exists || !mounted) return;
+
+    // Wait one frame so map size / transform are current.
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+
+    setState(() {
+      _guidingLocationId = locationId;
+      _guideCameraMoving = true;
+    });
+
+    final TownLocation target = TownLocation.all.firstWhere(
+      (TownLocation l) => l.id == locationId,
+    );
+    _guidePanStart = _mapTransform.value.clone();
+    _guidePanEnd = _computeCenterOnLocation(target);
+
+    _guidePan?.dispose();
+    _guidePan = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..addListener(_applyGuidePan);
+    await _guidePan!.forward();
+    if (!mounted) return;
+    _guidePan!.removeListener(_applyGuidePan);
+    setState(() => _guideCameraMoving = false);
+  }
+
+  void _applyGuidePan() {
+    final AnimationController? pan = _guidePan;
+    final Matrix4? start = _guidePanStart;
+    final Matrix4? end = _guidePanEnd;
+    if (pan == null || start == null || end == null) return;
+    final double t = Curves.easeInOut.transform(pan.value);
+    final double sx = start.getTranslation().x;
+    final double sy = start.getTranslation().y;
+    final double ex = end.getTranslation().x;
+    final double ey = end.getTranslation().y;
+    _mapTransform.value = Matrix4.translationValues(
+      sx + (ex - sx) * t,
+      sy + (ey - sy) * t,
+      0,
+    );
+  }
+
+  Matrix4 _computeCenterOnLocation(TownLocation location) {
+    final double x =
+        (location.position.x + 1) / 2 * _lastMapSize.width;
+    final double y =
+        (location.position.y + 1) / 2 * _lastMapSize.height;
+    double tx = _lastViewSize.width / 2 - x;
+    double ty = _lastViewSize.height / 2 - y;
+    tx = tx.clamp(-_lastMaxPanX, 0.0);
+    ty = ty.clamp(-_lastMaxPanY, 0.0);
+    return Matrix4.translationValues(tx, ty, 0);
+  }
+
+  void _clearLocationGuide() {
+    if (_guidingLocationId == null && !_guideCameraMoving) return;
+    _guidePan?.stop();
+    setState(() {
+      _guidingLocationId = null;
+      _guideCameraMoving = false;
+    });
   }
 
   void _applyInitialPan(double viewH, double maxPanY) {
@@ -115,11 +251,21 @@ class _TownMapScreenState extends State<TownMapScreen> {
   }
 
   Future<void> _load() async {
+    await SaveManager.instance.syncUnlockedBadgesFromProgress();
     final int coins = await SaveManager.instance.loadCoins();
     final String title = await SaveManager.instance.loadTitle();
+    final bool parkRestored = await SaveManager.instance.isParkRestored();
+    final bool schoolRestored = await SaveManager.instance.isSchoolRestored();
     final bool neighborhoodRestored =
         await SaveManager.instance.isNeighborhoodRestored();
-    // Older saves may have restored Neighborhood before Beach unlock existed.
+    // Older saves may restore a location without unlocking the next node.
+    if (parkRestored) {
+      await SaveManager.instance.unlockLocation(GameProgress.schoolLocationId);
+    }
+    if (schoolRestored) {
+      await SaveManager.instance
+          .unlockLocation(GameProgress.neighborhoodLocationId);
+    }
     if (neighborhoodRestored) {
       await SaveManager.instance.unlockLocation(GameProgress.beachLocationId);
     }
@@ -140,10 +286,8 @@ class _TownMapScreenState extends State<TownMapScreen> {
     final Set<String> unlocked =
         await SaveManager.instance.loadUnlockedLocations();
     final int parkMaxLevel = await SaveManager.instance.loadParkMaxLevel();
-    final bool parkRestored = await SaveManager.instance.isParkRestored();
     final bool parkStar = await SaveManager.instance.hasParkCompletionStar();
     final int schoolMaxLevel = await SaveManager.instance.loadSchoolMaxLevel();
-    final bool schoolRestored = await SaveManager.instance.isSchoolRestored();
     final bool schoolStar = await SaveManager.instance.hasSchoolCompletionStar();
     final int neighborhoodMaxLevel =
         await SaveManager.instance.loadNeighborhoodMaxLevel();
@@ -153,6 +297,8 @@ class _TownMapScreenState extends State<TownMapScreen> {
     final bool beachRestoredNow =
         await SaveManager.instance.isBeachRestored();
     final bool beachStar = await SaveManager.instance.hasBeachCompletionStar();
+    final int townCenterMaxLevel =
+        await SaveManager.instance.loadTownCenterMaxLevel();
     final String? equippedHat = await SaveManager.instance.loadEquippedHat();
     if (!mounted) return;
     setState(() {
@@ -171,6 +317,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
       _beachMaxLevel = beachMaxLevel;
       _beachRestored = beachRestoredNow;
       _beachStar = beachStar;
+      _townCenterMaxLevel = townCenterMaxLevel;
       _equippedHat = equippedHat;
       _loaded = true;
     });
@@ -225,19 +372,48 @@ class _TownMapScreenState extends State<TownMapScreen> {
     });
   }
 
+  Future<void> _maybeStartTownCenterCelebration() async {
+    if (!await SaveManager.instance.hasPendingTownCenterCelebration()) {
+      return;
+    }
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _celebration = _MapCelebration.townCenter);
+    });
+  }
+
   Future<void> _finishCelebration() async {
-    if (_celebration == _MapCelebration.park) {
+    final _MapCelebration finished = _celebration;
+    if (finished == _MapCelebration.park) {
       await SaveManager.instance.clearPendingParkCelebration();
-    } else if (_celebration == _MapCelebration.school) {
+    } else if (finished == _MapCelebration.school) {
       await SaveManager.instance.clearPendingSchoolCelebration();
-    } else if (_celebration == _MapCelebration.neighborhood) {
+    } else if (finished == _MapCelebration.neighborhood) {
       await SaveManager.instance.clearPendingNeighborhoodCelebration();
-    } else if (_celebration == _MapCelebration.beach) {
+    } else if (finished == _MapCelebration.beach) {
       await SaveManager.instance.clearPendingBeachCelebration();
+    } else if (finished == _MapCelebration.townCenter) {
+      await SaveManager.instance.clearPendingTownCenterCelebration();
     }
     if (!mounted) return;
     setState(() => _celebration = _MapCelebration.none);
     await _load();
+
+    if (finished == _MapCelebration.townCenter && mounted) {
+      final TownLocation townCenter = TownLocation.all.firstWhere(
+        (TownLocation l) => l.id == GameProgress.townCenterLocationId,
+      );
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => TownCenterLevel10IntroScreen(
+            location: townCenter,
+            character: widget.character,
+          ),
+        ),
+      );
+      if (mounted) await _load();
+    }
   }
 
   Future<int?> _pickParkLevel() async {
@@ -378,7 +554,11 @@ class _TownMapScreenState extends State<TownMapScreen> {
       return 'Unlocked';
     }
     if (location.id == 'town_center') {
-      return unlocked ? 'Unlocked' : 'Locked';
+      if (!unlocked) return 'Locked';
+      if (_townCenterMaxLevel >= GameProgress.townCenterLevel10) {
+        return 'Lv $_townCenterMaxLevel';
+      }
+      return 'Unlocked';
     }
     if (!unlocked) return 'Locked';
     return null;
@@ -591,6 +771,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
   }
 
   Future<void> _onLocationTap(TownLocation location, bool unlocked) async {
+    _clearLocationGuide();
     if (!unlocked) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -634,6 +815,38 @@ class _TownMapScreenState extends State<TownMapScreen> {
   }
 
   Future<void> _openTownCenter(TownLocation location) async {
+    final bool level9Done = await SaveManager.instance.isLevelCompleted(
+      GameProgress.townCenterLocationId,
+      GameProgress.townCenterLevel9,
+    );
+
+    if (level9Done &&
+        _townCenterMaxLevel < GameProgress.townCenterLevel10) {
+      await SaveManager.instance.ensureTownCenterLevel10Unlocked();
+      if (mounted) await _load();
+    }
+
+    final bool level10Unlocked = level9Done &&
+        _townCenterMaxLevel >= GameProgress.townCenterLevel10;
+
+    final int? picked = await _pickTownCenterLevel(
+      level10Unlocked: level10Unlocked,
+    );
+    if (!mounted || picked == null) return;
+
+    if (picked == GameProgress.townCenterLevel10) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (BuildContext context) => TownCenterLevel10IntroScreen(
+            location: location,
+            character: widget.character,
+          ),
+        ),
+      );
+      if (mounted) await _load();
+      return;
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => TownCenterIntroScreen(
@@ -644,6 +857,80 @@ class _TownMapScreenState extends State<TownMapScreen> {
     );
     if (!mounted) return;
     await _load();
+    await _maybeStartTownCenterCelebration();
+  }
+
+  Future<int?> _pickTownCenterLevel({required bool level10Unlocked}) async {
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        final double h = MediaQuery.sizeOf(context).height;
+        final bool compact = h < 420;
+        return Dialog(
+          backgroundColor: const Color(0xF00E0E1A),
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: compact ? 24 : 40,
+            vertical: compact ? 12 : 24,
+          ),
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: _kBorder, width: 4),
+            borderRadius: BorderRadius.zero,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 320 : 360),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+                compact ? 14 : 20,
+                compact ? 12 : 18,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'Choose Town Center Level',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Jersey10',
+                      fontSize: compact ? 24 : 30,
+                      height: 1,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 10 : 14),
+                  _LevelPickTile(
+                    label: 'Level 9',
+                    subtitle: 'The Final Cleanup Begins',
+                    color: const Color(0xFF5C6BC0),
+                    compact: compact,
+                    onTap: () => Navigator.of(context)
+                        .pop(GameProgress.townCenterLevel9),
+                  ),
+                  SizedBox(height: compact ? 6 : 10),
+                  _LevelPickTile(
+                    label: 'Level 10',
+                    subtitle: level10Unlocked
+                        ? "Green Town's Final Challenge"
+                        : 'Complete Level 9 to unlock',
+                    color: level10Unlocked
+                        ? const Color(0xFF3949AB)
+                        : const Color(0xFF78909C),
+                    compact: compact,
+                    locked: !level10Unlocked,
+                    onTap: level10Unlocked
+                        ? () => Navigator.of(context)
+                            .pop(GameProgress.townCenterLevel10)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openBeach(TownLocation location) async {
@@ -765,15 +1052,21 @@ class _TownMapScreenState extends State<TownMapScreen> {
     );
   }
 
-  void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('$feature coming soon!'),
-          duration: const Duration(milliseconds: 1200),
-        ),
-      );
+  Future<void> _openShop() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => const ShopScreen(),
+      ),
+    );
+    if (mounted) await _load();
+  }
+
+  Future<void> _openAwards() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => const AwardsScreen(),
+      ),
+    );
   }
 
   Future<void> _openSettings() async {
@@ -806,11 +1099,22 @@ class _TownMapScreenState extends State<TownMapScreen> {
           if (_loaded &&
               !_initialPanSet &&
               compact &&
-              _celebration == _MapCelebration.none) {
+              _celebration == _MapCelebration.none &&
+              _guidingLocationId == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               _applyInitialPan(viewH, maxPanY);
             });
+          }
+
+          TownLocation? guidingLocation;
+          if (_guidingLocationId != null) {
+            for (final TownLocation location in TownLocation.all) {
+              if (location.id == _guidingLocationId) {
+                guidingLocation = location;
+                break;
+              }
+            }
           }
 
           return Stack(
@@ -819,7 +1123,8 @@ class _TownMapScreenState extends State<TownMapScreen> {
               ClipRect(
                 child: InteractiveViewer(
                   transformationController: _mapTransform,
-                  panEnabled: _celebration == _MapCelebration.none,
+                  panEnabled: _celebration == _MapCelebration.none &&
+                      !_guideCameraMoving,
                   scaleEnabled: false,
                   constrained: false,
                   // Zero margin — cannot drag past the image edges.
@@ -866,6 +1171,7 @@ class _TownMapScreenState extends State<TownMapScreen> {
                                       (location.id == 'neighborhood' &&
                                           _neighborhoodStar) ||
                                       (location.id == 'beach' && _beachStar),
+                                  guiding: location.id == _guidingLocationId,
                                   onTap: () => _onLocationTap(
                                     location,
                                     _unlocked.contains(location.id),
@@ -902,9 +1208,8 @@ class _TownMapScreenState extends State<TownMapScreen> {
                         const Spacer(),
                         _ActionButtons(
                           compact: compact,
-                          onCustomization: () => _comingSoon('Customization'),
-                          onShop: () => _comingSoon('Shop'),
-                          onAchievements: () => _comingSoon('Achievements'),
+                          onShop: _openShop,
+                          onAchievements: _openAwards,
                           onSettings: _openSettings,
                         ),
                       ],
@@ -913,7 +1218,9 @@ class _TownMapScreenState extends State<TownMapScreen> {
                 ),
               ),
 
-              if (compact && _celebration == _MapCelebration.none)
+              if (compact &&
+                  _celebration == _MapCelebration.none &&
+                  _guidingLocationId == null)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -955,6 +1262,53 @@ class _TownMapScreenState extends State<TownMapScreen> {
                   ),
                 ),
 
+              if (guidingLocation != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: compact ? 10 : 18,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Center(
+                      child: IgnorePointer(
+                        child: Container(
+                          margin: EdgeInsets.symmetric(
+                            horizontal: compact ? 16 : 40,
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 14 : 20,
+                            vertical: compact ? 8 : 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xF00E0E1A),
+                            border: Border.all(
+                              color: guidingLocation.color,
+                              width: 4,
+                            ),
+                            boxShadow: <BoxShadow>[
+                              BoxShadow(
+                                color: guidingLocation.color
+                                    .withValues(alpha: 0.45),
+                                blurRadius: 16,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            '${guidingLocation.name} Unlocked!\nTap the glowing location',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Jersey10',
+                              fontSize: compact ? 18 : 24,
+                              height: 1.15,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
               if (_celebration == _MapCelebration.park)
                 ParkCelebrationOverlay(
                   mapTransform: _mapTransform,
@@ -986,6 +1340,15 @@ class _TownMapScreenState extends State<TownMapScreen> {
                 ),
               if (_celebration == _MapCelebration.beach)
                 BeachCelebrationOverlay(
+                  mapTransform: _mapTransform,
+                  mapSize: _lastMapSize,
+                  viewSize: _lastViewSize,
+                  maxPanX: _lastMaxPanX,
+                  maxPanY: _lastMaxPanY,
+                  onFinished: _finishCelebration,
+                ),
+              if (_celebration == _MapCelebration.townCenter)
+                TownCenterCelebrationOverlay(
                   mapTransform: _mapTransform,
                   mapSize: _lastMapSize,
                   viewSize: _lastViewSize,
@@ -1065,20 +1428,15 @@ class _ProfileBadge extends StatelessWidget {
                     fit: BoxFit.cover,
                   ),
                 ),
-                if (equippedHat == GameProgress.ecoHatId ||
-                    equippedHat == GameProgress.greenCapId ||
-                    equippedHat == GameProgress.beachHatId)
+                if (equippedHat != null &&
+                    CosmeticItem.byId(equippedHat!)?.kind == CosmeticKind.hat)
                   Positioned(
                     top: compact ? -4 : -6,
                     left: 0,
                     right: 0,
                     child: Icon(
-                      Icons.checkroom,
-                      color: equippedHat == GameProgress.beachHatId
-                          ? const Color(0xFF29B6F6)
-                          : equippedHat == GameProgress.greenCapId
-                              ? const Color(0xFF43A047)
-                              : const Color(0xFF66BB6A),
+                      CosmeticItem.byId(equippedHat!)!.icon,
+                      color: CosmeticItem.byId(equippedHat!)!.color,
                       size: compact ? 18 : 22,
                     ),
                   ),
@@ -1176,14 +1534,12 @@ class _CoinsPill extends StatelessWidget {
 
 class _ActionButtons extends StatelessWidget {
   const _ActionButtons({
-    required this.onCustomization,
     required this.onShop,
     required this.onAchievements,
     required this.onSettings,
     this.compact = false,
   });
 
-  final VoidCallback onCustomization;
   final VoidCallback onShop;
   final VoidCallback onAchievements;
   final VoidCallback onSettings;
@@ -1194,14 +1550,6 @@ class _ActionButtons extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _HudIconButton(
-          icon: Icons.checkroom,
-          label: 'Style',
-          color: const Color(0xFF26C6DA),
-          compact: compact,
-          onTap: onCustomization,
-        ),
-        SizedBox(width: compact ? 5 : 8),
         _HudIconButton(
           icon: Icons.storefront,
           label: 'Shop',
@@ -1300,6 +1648,7 @@ class _LocationNode extends StatefulWidget {
     this.levelLabel,
     this.restored = false,
     this.showStar = false,
+    this.guiding = false,
   });
 
   final TownLocation location;
@@ -1309,6 +1658,7 @@ class _LocationNode extends StatefulWidget {
   final String? levelLabel;
   final bool restored;
   final bool showStar;
+  final bool guiding;
 
   @override
   State<_LocationNode> createState() => _LocationNodeState();
@@ -1324,8 +1674,28 @@ class _LocationNodeState extends State<_LocationNode>
   @override
   void initState() {
     super.initState();
-    if (widget.unlocked) {
-      _pulse.repeat(reverse: true);
+    _syncPulse();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LocationNode oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.unlocked != widget.unlocked ||
+        oldWidget.guiding != widget.guiding) {
+      _syncPulse();
+    }
+  }
+
+  void _syncPulse() {
+    if (widget.guiding) {
+      _pulse.duration = const Duration(milliseconds: 550);
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else if (widget.unlocked) {
+      _pulse.duration = const Duration(milliseconds: 900);
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+      _pulse.value = 0;
     }
   }
 
@@ -1339,6 +1709,7 @@ class _LocationNodeState extends State<_LocationNode>
   Widget build(BuildContext context) {
     final bool unlocked = widget.unlocked;
     final bool compact = widget.compact;
+    final bool guiding = widget.guiding;
     final Color medallionColor = unlocked
         ? (widget.restored
             ? const Color(0xFF66BB6A)
@@ -1347,6 +1718,7 @@ class _LocationNodeState extends State<_LocationNode>
     final double nodeSize = compact ? 48 : 60;
     final double iconSize = compact ? 26 : 32;
     final double nameSize = compact ? 18 : 22;
+    final double guideScaleEnd = guiding ? 1.22 : 1.10;
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -1355,21 +1727,59 @@ class _LocationNodeState extends State<_LocationNode>
         children: <Widget>[
           ScaleTransition(
             scale: unlocked
-                ? Tween<double>(begin: 1.0, end: 1.10).animate(
+                ? Tween<double>(begin: 1.0, end: guideScaleEnd).animate(
                     CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
                   )
                 : const AlwaysStoppedAnimation<double>(1.0),
             child: Stack(
+              alignment: Alignment.center,
               clipBehavior: Clip.none,
               children: <Widget>[
+                if (guiding)
+                  AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (BuildContext context, _) {
+                      final double t = _pulse.value;
+                      final double ring = (compact ? 64.0 : 80.0) + t * 18;
+                      return Container(
+                        width: ring,
+                        height: ring,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: widget.location.color
+                                .withValues(alpha: 0.85 - t * 0.35),
+                            width: 4,
+                          ),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: widget.location.color
+                                  .withValues(alpha: 0.55),
+                              blurRadius: 18 + t * 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 Container(
                   width: nodeSize,
                   height: nodeSize,
                   decoration: BoxDecoration(
                     color: medallionColor,
-                    border: Border.all(color: _kBorder, width: compact ? 3 : 4),
-                    boxShadow: const <BoxShadow>[
-                      BoxShadow(color: _kBorder, offset: Offset(0, 4)),
+                    border: Border.all(
+                      color: guiding ? widget.location.color : _kBorder,
+                      width: compact ? 3 : 4,
+                    ),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: guiding
+                            ? widget.location.color.withValues(alpha: 0.7)
+                            : _kBorder,
+                        offset: const Offset(0, 4),
+                        blurRadius: guiding ? 12 : 0,
+                      ),
                     ],
                   ),
                   child: Icon(
@@ -1399,7 +1809,10 @@ class _LocationNodeState extends State<_LocationNode>
             ),
             decoration: BoxDecoration(
               color: unlocked ? const Color(0xF00E0E1A) : const Color(0xCC30303A),
-              border: Border.all(color: _kBorder, width: 3),
+              border: Border.all(
+                color: guiding ? widget.location.color : _kBorder,
+                width: 3,
+              ),
             ),
             child: Text(
               widget.levelLabel != null
@@ -1465,18 +1878,21 @@ class _LevelPickTile extends StatelessWidget {
     required this.color,
     required this.onTap,
     this.compact = false,
+    this.locked = false,
   });
 
   final String label;
   final String subtitle;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool compact;
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
+    final Color textColor = locked ? const Color(0xFFB0BEC5) : Colors.white;
     return Material(
-      color: const Color(0xFF161622),
+      color: locked ? const Color(0xFF101018) : const Color(0xFF161622),
       child: InkWell(
         onTap: onTap,
         child: Container(
@@ -1490,7 +1906,11 @@ class _LevelPickTile extends StatelessWidget {
           ),
           child: Row(
             children: <Widget>[
-              Icon(Icons.play_arrow, color: color, size: compact ? 22 : 28),
+              Icon(
+                locked ? Icons.lock : Icons.play_arrow,
+                color: color,
+                size: compact ? 22 : 28,
+              ),
               SizedBox(width: compact ? 8 : 10),
               Expanded(
                 child: Column(
@@ -1503,7 +1923,7 @@ class _LevelPickTile extends StatelessWidget {
                         fontFamily: 'Jersey10',
                         fontSize: compact ? 22 : 28,
                         height: 1,
-                        color: Colors.white,
+                        color: textColor,
                       ),
                     ),
                     SizedBox(height: compact ? 2 : 4),
@@ -1515,7 +1935,9 @@ class _LevelPickTile extends StatelessWidget {
                         fontFamily: 'Jersey10',
                         fontSize: compact ? 15 : 18,
                         height: 1,
-                        color: const Color(0xFFB0BEC5),
+                        color: locked
+                            ? const Color(0xFF78909C)
+                            : const Color(0xFFB0BEC5),
                       ),
                     ),
                   ],

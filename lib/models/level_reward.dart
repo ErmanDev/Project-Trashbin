@@ -14,9 +14,11 @@ class LevelRewardResult {
     this.levelNumber = 1,
     this.totalItems,
     this.rewardBadge,
+    this.rewardBadgeId,
     this.perfectBonus = false,
     this.impactSectionTitle = 'Environmental Impact',
     this.rewardIcon = Icons.military_tech,
+    this.isReplay = false,
   });
 
   final int stars;
@@ -29,11 +31,17 @@ class LevelRewardResult {
   final String locationId;
   final int levelNumber;
 
+  /// True when the level was already cleared; no coins/unlocks are granted.
+  final bool isReplay;
+
   /// When set, Correct Answers shows as `correct/total` (e.g. 10/10).
   final int? totalItems;
 
   /// Optional badge unlocked for this level (shown in a Reward section).
   final String? rewardBadge;
+
+  /// Cosmetic / badge id used to load the badge PNG on the reward screen.
+  final String? rewardBadgeId;
 
   /// Show a Perfect Bonus row when the player made zero mistakes.
   final bool perfectBonus;
@@ -48,8 +56,10 @@ class LevelRewardResult {
 
   bool get isBeach => locationId == 'beach';
 
-  /// Neighborhood / Beach mission results show coins + correct/total.
-  bool get usesMissionStats => isNeighborhood || isBeach;
+  bool get isTownCenter => locationId == 'town_center';
+
+  /// Mission results show coins + correct/total.
+  bool get usesMissionStats => isNeighborhood || isBeach || isTownCenter;
 
   String get correctAnswersLabel {
     if (totalItems != null) {

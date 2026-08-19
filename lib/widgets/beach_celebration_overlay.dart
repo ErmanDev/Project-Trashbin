@@ -1,9 +1,8 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_progress.dart';
 import '../models/town_location.dart';
+import '../services/audio_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
 import '../widgets/pixel_button.dart';
@@ -170,6 +169,7 @@ class _BeachCelebrationOverlayState extends State<BeachCelebrationOverlay>
           });
         } else {
           setState(() => _phase = BeachCelebrationPhase.unlock);
+          AudioManager.instance.playApplause();
         }
       case BeachCelebrationPhase.unlock:
         setState(() => _phase = BeachCelebrationPhase.done);
@@ -484,20 +484,12 @@ class _BeachMapProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double trashOut = (1 - (progress / 0.2)).clamp(0.0, 1.0);
     final double sandIn = Curves.easeOut.transform(
       ((progress - 0.15) / 0.2).clamp(0.0, 1.0),
-    );
-    final double turtleIn = Curves.elasticOut.transform(
-      ((progress - 0.4) / 0.25).clamp(0.0, 1.0),
-    );
-    final double birdsIn = Curves.easeOut.transform(
-      ((progress - 0.65) / 0.25).clamp(0.0, 1.0),
     );
     final double smileIn = Curves.easeOut.transform(
       ((progress - 0.85) / 0.15).clamp(0.0, 1.0),
     );
-
     final double glowR = compact ? 90.0 : 120.0;
 
     return IgnorePointer(
@@ -525,48 +517,6 @@ class _BeachMapProgress extends StatelessWidget {
                 ),
               ),
             ),
-          if (trashOut > 0)
-            ...List<Widget>.generate(6, (int i) {
-              final double ang = i * (math.pi * 2 / 6);
-              return Positioned(
-                left: center.dx + math.cos(ang) * 40 - 10,
-                top: center.dy + math.sin(ang) * 28 - 10,
-                child: Opacity(
-                  opacity: trashOut,
-                  child: Icon(
-                    Icons.delete_outline,
-                    color: const Color(0xFF8D6E63),
-                    size: compact ? 18 : 24,
-                  ),
-                ),
-              );
-            }),
-          if (turtleIn > 0)
-            Positioned(
-              left: center.dx - (compact ? 18 : 24),
-              top: center.dy + 8,
-              child: Transform.scale(
-                scale: turtleIn,
-                child: Text(
-                  '🐢',
-                  style: TextStyle(fontSize: compact ? 28 : 36),
-                ),
-              ),
-            ),
-          if (birdsIn > 0)
-            ...List<Widget>.generate(4, (int i) {
-              return Positioned(
-                left: center.dx - 50 + i * 28.0 + birdsIn * 10,
-                top: center.dy - 55 - (i % 2) * 12.0,
-                child: Opacity(
-                  opacity: birdsIn,
-                  child: Text(
-                    '🐦',
-                    style: TextStyle(fontSize: compact ? 16 : 20),
-                  ),
-                ),
-              );
-            }),
           if (smileIn > 0)
             Positioned(
               left: 0,

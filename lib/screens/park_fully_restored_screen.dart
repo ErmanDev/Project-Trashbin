@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_progress.dart';
+import '../services/audio_manager.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
@@ -103,6 +102,7 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
     final int next = _lineIndex + 1;
     if (next >= _lines.length) {
       setState(() => _phase = _RestorePhase.clap);
+      AudioManager.instance.playApplause();
       _clap.forward().whenComplete(() {
         if (mounted) _showBanner();
       });
@@ -379,7 +379,7 @@ class _ParkFullyRestoredScreenState extends State<ParkFullyRestoredScreen>
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                '🌳 Park Restored!',
+                'Park Restored!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
@@ -487,17 +487,8 @@ class _LifeReturnsOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double trashOut = (1 - progress / 0.18).clamp(0.0, 1.0);
     final double grassIn =
         Curves.easeOut.transform(((progress - 0.12) / 0.25).clamp(0.0, 1.0));
-    final double flowersIn =
-        Curves.elasticOut.transform(((progress - 0.3) / 0.25).clamp(0.0, 1.0));
-    final double birdsIn =
-        Curves.easeOut.transform(((progress - 0.5) / 0.2).clamp(0.0, 1.0));
-    final double kidsIn =
-        Curves.easeOut.transform(((progress - 0.65) / 0.2).clamp(0.0, 1.0));
-    final double familiesIn =
-        Curves.easeOut.transform(((progress - 0.8) / 0.2).clamp(0.0, 1.0));
 
     return IgnorePointer(
       child: Stack(
@@ -519,92 +510,6 @@ class _LifeReturnsOverlay extends StatelessWidget {
                 ),
               ),
             ),
-          if (trashOut > 0)
-            ...List<Widget>.generate(5, (int i) {
-              return Positioned(
-                left: width * (0.15 + i * 0.15),
-                top: height * (0.55 + (i.isEven ? 0.05 : -0.02)),
-                child: Opacity(
-                  opacity: trashOut,
-                  child: Icon(
-                    Icons.delete_outline,
-                    color: const Color(0xFF8D6E63),
-                    size: compact ? 22 : 28,
-                  ),
-                ),
-              );
-            }),
-          if (flowersIn > 0)
-            ...List<Widget>.generate(8, (int i) {
-              return Positioned(
-                left: width * (0.08 + (i % 4) * 0.22),
-                top: height * (0.42 + (i ~/ 4) * 0.18),
-                child: Transform.scale(
-                  scale: flowersIn,
-                  child: Text(
-                    i.isEven ? '🌸' : '🌼',
-                    style: TextStyle(fontSize: compact ? 18 : 24),
-                  ),
-                ),
-              );
-            }),
-          if (birdsIn > 0)
-            ...List<Widget>.generate(4, (int i) {
-              final double fly = birdsIn;
-              return Positioned(
-                left: width * (0.2 + i * 0.18) + fly * 20,
-                top: height * (0.12 + i * 0.04) - fly * 10,
-                child: Opacity(
-                  opacity: birdsIn,
-                  child: Text(
-                    '🐦',
-                    style: TextStyle(fontSize: compact ? 18 : 22),
-                  ),
-                ),
-              );
-            }),
-          if (kidsIn > 0) ...<Widget>[
-            Positioned(
-              left: width * 0.22,
-              bottom: height * 0.28,
-              child: Opacity(
-                opacity: kidsIn,
-                child: Text('🧒', style: TextStyle(fontSize: compact ? 28 : 36)),
-              ),
-            ),
-            Positioned(
-              left: width * 0.32,
-              bottom: height * 0.26,
-              child: Opacity(
-                opacity: kidsIn,
-                child: Text('👧', style: TextStyle(fontSize: compact ? 28 : 36)),
-              ),
-            ),
-          ],
-          if (familiesIn > 0) ...<Widget>[
-            Positioned(
-              right: width * 0.18,
-              bottom: height * 0.24,
-              child: Opacity(
-                opacity: familiesIn,
-                child: Text(
-                  '👨‍👩‍👧',
-                  style: TextStyle(fontSize: compact ? 26 : 34),
-                ),
-              ),
-            ),
-            Positioned(
-              right: width * 0.32,
-              bottom: height * 0.22,
-              child: Opacity(
-                opacity: familiesIn,
-                child: Text(
-                  '🚶',
-                  style: TextStyle(fontSize: compact ? 24 : 30),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -625,31 +530,7 @@ class _ClapOverlay extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        children: List<Widget>.generate(7, (int i) {
-          final double angle = i * 0.9;
-          final double pulse =
-              0.85 + 0.15 * math.sin(progress * math.pi * 4 + i);
-          return Positioned(
-            left: width * 0.5 + math.cos(angle) * width * 0.28 - 12,
-            top: height * 0.55 + math.sin(angle) * height * 0.12,
-            child: Opacity(
-              opacity: progress.clamp(0.0, 1.0),
-              child: Transform.scale(
-                scale: pulse,
-                child: Text(
-                  '👏',
-                  style: TextStyle(fontSize: compact ? 22 : 28),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 class _RewardLine extends StatelessWidget {

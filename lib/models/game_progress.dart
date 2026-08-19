@@ -42,6 +42,9 @@ class GameProgress {
       'assets/images/png/puzzle_beach_clean.png';
   static const String townCenterTrashBg =
       'assets/images/png/town_center_trash_bg.png';
+  static const String townCenterCleanBg =
+      'assets/images/png/town_center_clean_bg.png';
+  static const String awardsShelfBg = 'assets/images/png/awards_shelf_bg.png';
   static const String townCenterPuzzleClean =
       'assets/images/png/puzzle_town_center_clean.png';
   static const String neighborhoodLocationId = 'neighborhood';
@@ -68,8 +71,22 @@ class GameProgress {
   static const int beachLevel7BonusCoins = 155;
   /// Bonus so Level 8 shows +300 total (130 play + 170).
   static const int beachLevel8BonusCoins = 170;
+  /// Bonus so Level 9 shows +350 total (140 play + 210).
+  static const int townCenterLevel9BonusCoins = 210;
   static const String oceanGuardianBadgeId = 'ocean_guardian';
   static const String oceanGuardianBadgeName = 'Ocean Guardian Badge';
+  static const String ecoExpertBadgeId = 'eco_expert';
+  static const String ecoExpertBadgeName = 'Eco Expert Badge';
+  static const String recyclingHeroBadgeId = 'recycling_hero';
+  static const String recyclingHeroTitle = 'Recycling Hero';
+  static const String goldenEcoOutfitId = 'golden_eco_outfit';
+  static const String goldenEcoOutfitName = 'Golden Eco Outfit';
+  static const String heroCrownId = 'hero_crown';
+  static const String heroCrownName = 'Hero Crown';
+  static const String finalCompletionBadgeId = 'final_completion_badge';
+  static const String finalCompletionBadgeName = 'Final Completion Badge';
+  /// Bonus coins awarded on the Final Rewards screen.
+  static const int townFullyRestoredBonusCoins = 500;
   static const String beachHatId = 'beach_hat';
   static const String beachHatName = 'Beach Hat';
   static const String seaTurtlePetId = 'sea_turtle_pet';

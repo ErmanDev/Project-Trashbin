@@ -15,10 +15,12 @@ class ConfettiOverlay extends StatefulWidget {
     super.key,
     this.particleCount = 130,
     this.duration = const Duration(milliseconds: 4200),
+    this.colors,
   });
 
   final int particleCount;
   final Duration duration;
+  final List<Color>? colors;
 
   @override
   State<ConfettiOverlay> createState() => _ConfettiOverlayState();
@@ -49,6 +51,7 @@ class _ConfettiOverlayState extends State<ConfettiOverlay>
   void initState() {
     super.initState();
     final math.Random rnd = math.Random();
+    final List<Color> palette = widget.colors ?? _palette;
     _particles = List<_Particle>.generate(widget.particleCount, (int i) {
       return _Particle(
         originX: rnd.nextDouble(),
@@ -57,7 +60,7 @@ class _ConfettiOverlayState extends State<ConfettiOverlay>
         originY: -0.6 + rnd.nextDouble() * 0.8,
         vx: (rnd.nextDouble() - 0.5) * 0.4,
         vy: 0.15 + rnd.nextDouble() * 0.2,
-        color: _palette[rnd.nextInt(_palette.length)],
+        color: palette[rnd.nextInt(palette.length)],
         size: 8 + rnd.nextDouble() * 9,
         rotation: rnd.nextDouble() * math.pi * 2,
         spin: (rnd.nextDouble() - 0.5) * 12,

@@ -13,9 +13,11 @@ class AudioManager {
   // Path is relative to the `assets/` folder for AssetSource.
   static const String _bgMusicAsset = 'audio/bg_music.mp3';
   static const String _snapAsset = 'audio/snap.wav';
+  static const String _applauseAsset = 'audio/applause.wav';
 
   final AudioPlayer _bgPlayer = AudioPlayer(playerId: 'bg_music');
   final AudioPlayer _sfxPlayer = AudioPlayer(playerId: 'sfx');
+  final AudioPlayer _applausePlayer = AudioPlayer(playerId: 'applause');
 
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
@@ -80,9 +82,25 @@ class AudioManager {
     }
   }
 
+  /// Plays applause during celebrations and achievements.
+  /// Uses a dedicated player so it is not cut short by snap SFX.
+  Future<void> playApplause() async {
+    if (_isMuted) return;
+    try {
+      await _applausePlayer.stop();
+      await _applausePlayer.setReleaseMode(ReleaseMode.release);
+      await _applausePlayer.setVolume(1.0);
+      await _applausePlayer.play(AssetSource(_applauseAsset));
+    } catch (error, stackTrace) {
+      debugPrint('Failed to play applause sfx: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
   Future<void> dispose() async {
     await _bgPlayer.dispose();
     await _sfxPlayer.dispose();
+    await _applausePlayer.dispose();
     _isPlaying = false;
   }
 }

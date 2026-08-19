@@ -21,6 +21,8 @@ class SaveManager {
   static const String _parkRestoredKey = 'save_park_restored';
   static const String _cosmeticsKey = 'save_unlocked_cosmetics';
   static const String _equippedHatKey = 'save_equipped_hat';
+  static const String _equippedOutfitKey = 'save_equipped_outfit';
+  static const String _equippedPetKey = 'save_equipped_pet';
   static const String _pendingCelebrationKey = 'save_pending_park_celebration';
   static const String _pendingCelebrationCoinsKey =
       'save_pending_celebration_coins';
@@ -32,6 +34,10 @@ class SaveManager {
       'save_pending_neighborhood_celebration';
   static const String _pendingBeachCelebrationKey =
       'save_pending_beach_celebration';
+  static const String _pendingTownCenterCelebrationKey =
+      'save_pending_town_center_celebration';
+  /// After both levels at a location are done, auto-open this location next.
+  static const String _pendingNextLocationKey = 'save_pending_next_location';
   static const String _parkStarKey = 'save_park_completion_star';
   static const String _schoolMaxLevelKey = 'save_school_max_level';
   static const String _schoolRestoredKey = 'save_school_restored';
@@ -42,6 +48,8 @@ class SaveManager {
   static const String _beachMaxLevelKey = 'save_beach_max_level';
   static const String _beachRestoredKey = 'save_beach_restored';
   static const String _beachStarKey = 'save_beach_completion_star';
+  static const String _townCenterMaxLevelKey = 'save_town_center_max_level';
+  static const String _townFinaleRewardsKey = 'save_town_finale_rewards';
 
   /// Locations the player can access from the very start of a new game.
   static const List<String> defaultUnlocked = <String>['park'];
@@ -98,6 +106,16 @@ class SaveManager {
     return updated;
   }
 
+  /// Spends [amount] coins. Returns false if the balance is too low.
+  Future<bool> spendCoins(int amount) async {
+    if (amount <= 0) return true;
+    final SharedPreferences prefs = await _preferences;
+    final int current = prefs.getInt(_coinsKey) ?? 0;
+    if (current < amount) return false;
+    await prefs.setInt(_coinsKey, current - amount);
+    return true;
+  }
+
   Future<String> loadTitle() async {
     final SharedPreferences prefs = await _preferences;
     return prefs.getString(_titleKey) ?? defaultTitle;
@@ -118,6 +136,21 @@ class SaveManager {
     final Set<String> unlocked = await loadUnlockedLocations();
     unlocked.add(locationId);
     await prefs.setStringList(_unlockedKey, unlocked.toList());
+  }
+
+  Future<void> setPendingNextLocation(String locationId) async {
+    final SharedPreferences prefs = await _preferences;
+    await prefs.setString(_pendingNextLocationKey, locationId);
+  }
+
+  /// Returns and clears the location that should open after returning to the map.
+  Future<String?> consumePendingNextLocation() async {
+    final SharedPreferences prefs = await _preferences;
+    final String? id = prefs.getString(_pendingNextLocationKey);
+    if (id != null) {
+      await prefs.remove(_pendingNextLocationKey);
+    }
+    return id;
   }
 
   Future<Set<String>> loadCompletedLevels() async {
@@ -169,6 +202,48 @@ class SaveManager {
     await prefs.setString(_equippedHatKey, hatId);
   }
 
+  Future<void> clearEquippedHat() async {
+    final SharedPreferences prefs = await _preferences;
+    await prefs.remove(_equippedHatKey);
+  }
+
+  Future<String?> loadEquippedOutfit() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getString(_equippedOutfitKey);
+  }
+
+  Future<void> equipOutfit(String? outfitId) async {
+    final SharedPreferences prefs = await _preferences;
+    if (outfitId == null || outfitId.isEmpty) {
+      await prefs.remove(_equippedOutfitKey);
+    } else {
+      await prefs.setString(_equippedOutfitKey, outfitId);
+    }
+  }
+
+  Future<String?> loadEquippedPet() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getString(_equippedPetKey);
+  }
+
+  Future<void> equipPet(String? petId) async {
+    final SharedPreferences prefs = await _preferences;
+    if (petId == null || petId.isEmpty) {
+      await prefs.remove(_equippedPetKey);
+    } else {
+      await prefs.setString(_equippedPetKey, petId);
+    }
+  }
+
+  /// Purchases a shop cosmetic if affordable and not already owned.
+  Future<bool> purchaseCosmetic(String cosmeticId, int price) async {
+    final Set<String> owned = await loadUnlockedCosmetics();
+    if (owned.contains(cosmeticId)) return true;
+    if (!await spendCoins(price)) return false;
+    await unlockCosmetic(cosmeticId);
+    return true;
+  }
+
   /// Whether the town map should play the post-Level-1 celebration sequence.
   Future<bool> hasPendingParkCelebration() async {
     final SharedPreferences prefs = await _preferences;
@@ -218,6 +293,11 @@ class SaveManager {
       GameProgress.parkLocationId,
       GameProgress.parkLevel2,
     )) {
+      await unlockLocation(GameProgress.schoolLocationId);
+      await setPendingNextLocation(GameProgress.schoolLocationId);
+      final SharedPreferences prefs = await _preferences;
+      await prefs.setBool(_parkRestoredKey, true);
+      await prefs.setBool(_parkStarKey, true);
       return;
     }
 
@@ -228,7 +308,8 @@ class SaveManager {
     await addCoins(GameProgress.parkFullyRestoredBonusCoins);
     await unlockCosmetic(GameProgress.greenCapId);
     await equipHat(GameProgress.greenCapId);
-    await unlockLocation('school');
+    await unlockLocation(GameProgress.schoolLocationId);
+    await setPendingNextLocation(GameProgress.schoolLocationId);
   }
 
   Future<int> loadSchoolMaxLevel() async {
@@ -284,6 +365,11 @@ class SaveManager {
       GameProgress.schoolLocationId,
       GameProgress.schoolLevel4,
     )) {
+      await unlockLocation(GameProgress.neighborhoodLocationId);
+      await setPendingNextLocation(GameProgress.neighborhoodLocationId);
+      final SharedPreferences prefs = await _preferences;
+      await prefs.setBool(_schoolRestoredKey, true);
+      await prefs.setBool(_schoolStarKey, true);
       return;
     }
     final SharedPreferences prefs = await _preferences;
@@ -296,7 +382,8 @@ class SaveManager {
     await addCoins(GameProgress.schoolFullyRestoredBonusCoins);
     await unlockCosmetic(GameProgress.scholarBadgeId);
     await saveTitle(GameProgress.scholarBadgeTitle);
-    await unlockLocation('neighborhood');
+    await unlockLocation(GameProgress.neighborhoodLocationId);
+    await setPendingNextLocation(GameProgress.neighborhoodLocationId);
   }
 
   Future<void> completeNeighborhoodLevel5({required int coinsEarned}) async {
@@ -304,6 +391,8 @@ class SaveManager {
       GameProgress.neighborhoodLocationId,
       GameProgress.neighborhoodLevel5,
     )) {
+      // Older saves may have L5 done without the badge unlock.
+      await unlockCosmetic(GameProgress.ecoSafetyBadgeId);
       return;
     }
     final SharedPreferences prefs = await _preferences;
@@ -318,6 +407,56 @@ class SaveManager {
     await addCoins(GameProgress.neighborhoodLevel5BonusCoins);
     await unlockCosmetic(GameProgress.ecoSafetyBadgeId);
     await saveTitle(GameProgress.ecoSafetyBadgeName);
+    await prefs.setBool(_pendingNeighborhoodCelebrationKey, true);
+  }
+
+  /// Grants any missing badges for levels the player already finished.
+  Future<void> syncUnlockedBadgesFromProgress() async {
+    if (await isLevelCompleted(
+      GameProgress.parkLocationId,
+      GameProgress.parkLevel1,
+    )) {
+      await unlockCosmetic(GameProgress.recyclingRookieBadgeId);
+    }
+    if (await isSchoolRestored() ||
+        await isLevelCompleted(
+          GameProgress.schoolLocationId,
+          GameProgress.schoolLevel4,
+        )) {
+      await unlockCosmetic(GameProgress.scholarBadgeId);
+    }
+    if (await isLevelCompleted(
+      GameProgress.neighborhoodLocationId,
+      GameProgress.neighborhoodLevel5,
+    )) {
+      await unlockCosmetic(GameProgress.ecoSafetyBadgeId);
+    }
+    if (await isNeighborhoodRestored() ||
+        await isLevelCompleted(
+          GameProgress.neighborhoodLocationId,
+          GameProgress.neighborhoodLevel6,
+        )) {
+      await unlockCosmetic(GameProgress.communityGuardianBadgeId);
+    }
+    if (await isLevelCompleted(
+      GameProgress.beachLocationId,
+      GameProgress.beachLevel7,
+    )) {
+      await unlockCosmetic(GameProgress.oceanGuardianBadgeId);
+    }
+    if (await isLevelCompleted(
+      GameProgress.townCenterLocationId,
+      GameProgress.townCenterLevel9,
+    )) {
+      await unlockCosmetic(GameProgress.ecoExpertBadgeId);
+    }
+    if (await isLevelCompleted(
+      GameProgress.townCenterLocationId,
+      GameProgress.townCenterLevel10,
+    )) {
+      await unlockCosmetic(GameProgress.recyclingHeroBadgeId);
+      await unlockCosmetic(GameProgress.finalCompletionBadgeId);
+    }
   }
 
   Future<bool> hasPendingNeighborhoodCelebration() async {
@@ -353,6 +492,7 @@ class SaveManager {
     )) {
       // Ensure Beach stays unlocked even if an older save completed L6 first.
       await unlockLocation(GameProgress.beachLocationId);
+      await setPendingNextLocation(GameProgress.beachLocationId);
       final SharedPreferences prefs = await _preferences;
       await prefs.setBool(_neighborhoodRestoredKey, true);
       await prefs.setBool(_neighborhoodStarKey, true);
@@ -373,6 +513,7 @@ class SaveManager {
     await unlockCosmetic(GameProgress.communityGuardianBadgeId);
     await saveTitle(GameProgress.communityGuardianTitle);
     await unlockLocation(GameProgress.beachLocationId);
+    await setPendingNextLocation(GameProgress.beachLocationId);
   }
 
   Future<void> completeBeachLevel7({required int coinsEarned}) async {
@@ -400,6 +541,7 @@ class SaveManager {
       GameProgress.beachLevel8,
     )) {
       await unlockLocation(GameProgress.townCenterLocationId);
+      await setPendingNextLocation(GameProgress.townCenterLocationId);
       final SharedPreferences prefs = await _preferences;
       await prefs.setBool(_beachRestoredKey, true);
       await prefs.setBool(_beachStarKey, true);
@@ -420,6 +562,7 @@ class SaveManager {
     await unlockCosmetic(GameProgress.seaTurtlePetId);
     await saveTitle(GameProgress.beachHatName);
     await unlockLocation(GameProgress.townCenterLocationId);
+    await setPendingNextLocation(GameProgress.townCenterLocationId);
   }
 
   Future<bool> isBeachRestored() async {
@@ -469,6 +612,95 @@ class SaveManager {
     }
   }
 
+  Future<void> completeTownCenterLevel9({required int coinsEarned}) async {
+    if (await isLevelCompleted(
+      GameProgress.townCenterLocationId,
+      GameProgress.townCenterLevel9,
+    )) {
+      return;
+    }
+    final SharedPreferences prefs = await _preferences;
+    await markLevelCompleted(
+      GameProgress.townCenterLocationId,
+      GameProgress.townCenterLevel9,
+    );
+    await prefs.setInt(
+      _townCenterMaxLevelKey,
+      GameProgress.townCenterLevel10,
+    );
+    await addCoins(GameProgress.townCenterLevel9BonusCoins);
+    await unlockCosmetic(GameProgress.ecoExpertBadgeId);
+    await saveTitle(GameProgress.ecoExpertBadgeName);
+    await prefs.setBool(_pendingTownCenterCelebrationKey, true);
+  }
+
+  Future<bool> hasPendingTownCenterCelebration() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getBool(_pendingTownCenterCelebrationKey) ?? false;
+  }
+
+  Future<void> clearPendingTownCenterCelebration() async {
+    final SharedPreferences prefs = await _preferences;
+    await prefs.remove(_pendingTownCenterCelebrationKey);
+  }
+
+  Future<int> loadTownCenterMaxLevel() async {
+    final SharedPreferences prefs = await _preferences;
+    return prefs.getInt(_townCenterMaxLevelKey) ??
+        GameProgress.townCenterLevel9;
+  }
+
+  /// Ensures Level 10 is selectable after Level 9 (fixes older saves).
+  Future<void> ensureTownCenterLevel10Unlocked() async {
+    if (!await isLevelCompleted(
+      GameProgress.townCenterLocationId,
+      GameProgress.townCenterLevel9,
+    )) {
+      return;
+    }
+    final SharedPreferences prefs = await _preferences;
+    final int current = prefs.getInt(_townCenterMaxLevelKey) ??
+        GameProgress.townCenterLevel9;
+    if (current < GameProgress.townCenterLevel10) {
+      await prefs.setInt(
+        _townCenterMaxLevelKey,
+        GameProgress.townCenterLevel10,
+      );
+    }
+  }
+
+  /// Final ceremony after Level 10 — unlocks all finale rewards once.
+  Future<void> completeTownCenterFinale() async {
+    final SharedPreferences prefs = await _preferences;
+    if (prefs.getBool(_townFinaleRewardsKey) ?? false) {
+      return;
+    }
+    if (!await isLevelCompleted(
+      GameProgress.townCenterLocationId,
+      GameProgress.townCenterLevel10,
+    )) {
+      await markLevelCompleted(
+        GameProgress.townCenterLocationId,
+        GameProgress.townCenterLevel10,
+      );
+    }
+    await prefs.setInt(
+      _townCenterMaxLevelKey,
+      GameProgress.townCenterLevel10,
+    );
+    await addCoins(GameProgress.townFullyRestoredBonusCoins);
+    await unlockCosmetic(GameProgress.recyclingHeroBadgeId);
+    await unlockCosmetic(GameProgress.goldenEcoOutfitId);
+    await unlockCosmetic(GameProgress.heroCrownId);
+    await unlockCosmetic(GameProgress.finalCompletionBadgeId);
+    await equipHat(GameProgress.heroCrownId);
+    await saveTitle(GameProgress.recyclingHeroTitle);
+    await prefs.setBool(_townFinaleRewardsKey, true);
+  }
+
+  /// @Deprecated — use [completeTownCenterFinale].
+  Future<void> completeTownCenterCeremony() => completeTownCenterFinale();
+
   Future<void> clear() async {
     final SharedPreferences prefs = await _preferences;
     await prefs.remove(_characterKey);
@@ -480,12 +712,15 @@ class SaveManager {
     await prefs.remove(_parkRestoredKey);
     await prefs.remove(_cosmeticsKey);
     await prefs.remove(_equippedHatKey);
+    await prefs.remove(_equippedOutfitKey);
+    await prefs.remove(_equippedPetKey);
     await prefs.remove(_pendingCelebrationKey);
     await prefs.remove(_pendingCelebrationCoinsKey);
     await prefs.remove(_pendingSchoolCelebrationKey);
     await prefs.remove(_pendingSchoolCelebrationCoinsKey);
     await prefs.remove(_pendingNeighborhoodCelebrationKey);
     await prefs.remove(_pendingBeachCelebrationKey);
+    await prefs.remove(_pendingTownCenterCelebrationKey);
     await prefs.remove(_parkStarKey);
     await prefs.remove(_schoolMaxLevelKey);
     await prefs.remove(_schoolRestoredKey);
@@ -496,5 +731,7 @@ class SaveManager {
     await prefs.remove(_beachMaxLevelKey);
     await prefs.remove(_beachRestoredKey);
     await prefs.remove(_beachStarKey);
+    await prefs.remove(_townCenterMaxLevelKey);
+    await prefs.remove(_townFinaleRewardsKey);
   }
 }

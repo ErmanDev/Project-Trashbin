@@ -119,6 +119,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     }
     if (_locked.length == _count && !_complete) {
       setState(() => _complete = true);
+      AudioManager.instance.playApplause();
     }
   }
 
@@ -754,13 +755,18 @@ class _BeachCompleteAmbienceState extends State<_BeachCompleteAmbience>
                 bottom: 18 + wave,
                 child: Opacity(
                   opacity: 0.55,
-                  child: Text(
-                    '🌊  🌊  🌊  🌊  🌊  🌊',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: size.height < 420 ? 22 : 30,
-                      letterSpacing: 6,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List<Widget>.generate(6, (int i) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Icon(
+                          Icons.waves,
+                          color: const Color(0xFF29B6F6),
+                          size: size.height < 420 ? 22 : 30,
+                        ),
+                      );
+                    }),
                   ),
                 ),
               ),
@@ -772,11 +778,10 @@ class _BeachCompleteAmbienceState extends State<_BeachCompleteAmbience>
                       math.sin(fly * math.pi) * 12,
                   child: Opacity(
                     opacity: 0.85,
-                    child: Text(
-                      '🐦',
-                      style: TextStyle(
-                        fontSize: size.height < 420 ? 18 : 24,
-                      ),
+                    child: Icon(
+                      Icons.flutter_dash,
+                      color: const Color(0xFF90CAF9),
+                      size: size.height < 420 ? 18 : 24,
                     ),
                   ),
                 );
@@ -849,9 +854,12 @@ class _TownCenterCompleteAmbienceState extends State<_TownCenterCompleteAmbience
                   top: cy + math.sin(ang) * radius - 10,
                   child: Opacity(
                     opacity: (1 - burst).clamp(0.0, 1.0),
-                    child: Text(
-                      i.isEven ? '🎆' : '✨',
-                      style: TextStyle(fontSize: compact ? 16 : 22),
+                    child: Icon(
+                      i.isEven ? Icons.auto_awesome : Icons.star,
+                      color: i.isEven
+                          ? const Color(0xFFFFECB3)
+                          : const Color(0xFFFFF59D),
+                      size: compact ? 16 : 22,
                     ),
                   ),
                 );

@@ -1,9 +1,8 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_progress.dart';
 import '../models/town_location.dart';
+import '../services/audio_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
 import '../widgets/pixel_button.dart';
@@ -174,6 +173,7 @@ class _NeighborhoodCelebrationOverlayState
           });
         } else {
           setState(() => _phase = NeighborhoodCelebrationPhase.unlock);
+          AudioManager.instance.playApplause();
         }
       case NeighborhoodCelebrationPhase.unlock:
         setState(() => _phase = NeighborhoodCelebrationPhase.done);
@@ -355,14 +355,8 @@ class _NeighborhoodCelebrationOverlayState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(
-                Icons.beach_access,
-                color: const Color(0xFF29B6F6),
-                size: compact ? 36 : 56,
-              ),
-              SizedBox(height: compact ? 6 : 12),
               Text(
-                'Beach Unlocked!',
+                'Neighborhood Level 6 Unlocked!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
@@ -373,7 +367,7 @@ class _NeighborhoodCelebrationOverlayState
               ),
               SizedBox(height: compact ? 6 : 10),
               Text(
-                'Neighborhood Level 6 is ready',
+                'Finish the community cleanup next',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Jersey10',
@@ -485,20 +479,9 @@ class _NeighborhoodMapProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double trashOut = (1 - (progress / 0.18)).clamp(0.0, 1.0);
-    final double sweepIn = Curves.easeOut.transform(
-      ((progress - 0.15) / 0.2).clamp(0.0, 1.0),
-    );
-    final double gardenIn = Curves.elasticOut.transform(
-      ((progress - 0.35) / 0.22).clamp(0.0, 1.0),
-    );
     final double lightsIn = Curves.easeOut.transform(
       ((progress - 0.55) / 0.2).clamp(0.0, 1.0),
     );
-    final double smileIn = Curves.easeOut.transform(
-      ((progress - 0.75) / 0.25).clamp(0.0, 1.0),
-    );
-
     final double glowR = compact ? 90.0 : 120.0;
 
     return IgnorePointer(
@@ -513,94 +496,16 @@ class _NeighborhoodMapProgress extends StatelessWidget {
               height: glowR * 2,
               child: Opacity(
                 opacity: lightsIn * 0.85,
-                child: DecoratedBox(
+                child: const DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: <Color>[
-                        const Color(0xCCFFECB3),
-                        const Color(0x00FFECB3),
+                        Color(0xCCFFECB3),
+                        Color(0x00FFECB3),
                       ],
                     ),
                   ),
-                ),
-              ),
-            ),
-          if (trashOut > 0)
-            ...List<Widget>.generate(6, (int i) {
-              final double angle = i * 1.15;
-              final double dist = compact ? 48.0 : 64.0;
-              return Positioned(
-                left: center.dx + math.cos(angle) * dist - 14,
-                top: center.dy + math.sin(angle) * dist * 0.7 - 14,
-                child: Opacity(
-                  opacity: trashOut,
-                  child: Icon(
-                    i.isEven ? Icons.delete_outline : Icons.shopping_bag,
-                    color: const Color(0xFF8D6E63),
-                    size: compact ? 22 : 28,
-                  ),
-                ),
-              );
-            }),
-          if (sweepIn > 0)
-            ...List<Widget>.generate(3, (int i) {
-              return Positioned(
-                left: center.dx + (i - 1) * (compact ? 36.0 : 48.0) - 12,
-                top: center.dy + (compact ? 18 : 26),
-                child: Opacity(
-                  opacity: sweepIn,
-                  child: Transform.translate(
-                    offset: Offset(0, (1 - sweepIn) * 20),
-                    child: Text(
-                      i == 1 ? '🧹' : '🧍',
-                      style: TextStyle(fontSize: compact ? 22 : 28),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          if (gardenIn > 0)
-            ...List<Widget>.generate(6, (int i) {
-              final double angle = i * 0.9 + 0.2;
-              final double dist = (compact ? 70.0 : 95.0) * (0.55 + i * 0.05);
-              return Positioned(
-                left: center.dx + math.cos(angle) * dist - 10,
-                top: center.dy + math.sin(angle) * dist * 0.65 - 10,
-                child: Transform.scale(
-                  scale: gardenIn,
-                  child: Text(
-                    i.isEven ? '🌱' : '🌼',
-                    style: TextStyle(fontSize: compact ? 18 : 22),
-                  ),
-                ),
-              );
-            }),
-          if (lightsIn > 0)
-            ...List<Widget>.generate(4, (int i) {
-              final double angle = -1.2 + i * 0.8;
-              final double dist = compact ? 78.0 : 100.0;
-              return Positioned(
-                left: center.dx + math.cos(angle) * dist - 10,
-                top: center.dy + math.sin(angle) * dist * 0.45 - 28,
-                child: Opacity(
-                  opacity: lightsIn,
-                  child: Text(
-                    '💡',
-                    style: TextStyle(fontSize: compact ? 18 : 22),
-                  ),
-                ),
-              );
-            }),
-          if (smileIn > 0)
-            Positioned(
-              left: center.dx - (compact ? 18 : 24),
-              top: center.dy - (compact ? 10 : 14),
-              child: Opacity(
-                opacity: smileIn,
-                child: Text(
-                  '😊',
-                  style: TextStyle(fontSize: compact ? 28 : 36),
                 ),
               ),
             ),

@@ -157,6 +157,31 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               },
             ),
           ),
+          // Version mark — bottom right, small pixel text.
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Padding(
+                padding: EdgeInsets.only(right: 12, bottom: 8),
+                child: Text(
+                  'v1',
+                  style: TextStyle(
+                    fontFamily: 'Jersey10',
+                    fontSize: 24,
+                    height: 1,
+                    color: Color(0xCCFFFFFF),
+                    shadows: <Shadow>[
+                      Shadow(
+                        color: Color(0x88000000),
+                        offset: Offset(1, 1),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

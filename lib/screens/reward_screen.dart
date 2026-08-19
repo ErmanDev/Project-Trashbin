@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../models/cosmetic_item.dart';
 import '../models/game_progress.dart';
 import '../models/level_reward.dart';
+import '../services/audio_manager.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/pixel_button.dart';
@@ -11,7 +13,7 @@ import 'park_fully_restored_screen.dart';
 import 'school_fully_restored_screen.dart';
 
 /// Post-level results screen with stars, stats, and environmental impact.
-class RewardScreen extends StatelessWidget {
+class RewardScreen extends StatefulWidget {
   const RewardScreen({
     super.key,
     required this.result,
@@ -23,27 +25,43 @@ class RewardScreen extends StatelessWidget {
   static const Color _border = Color(0xFF2B2B3A);
 
   @override
+  State<RewardScreen> createState() => _RewardScreenState();
+}
+
+class _RewardScreenState extends State<RewardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AudioManager.instance.playApplause();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final LevelRewardResult result = widget.result;
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
           Image.asset(
-            result.locationId == GameProgress.beachLocationId
-                ? (result.levelNumber >= 8
-                    ? GameProgress.beachCleanBg
-                    : GameProgress.beachTrashBg)
-                : result.locationId == GameProgress.neighborhoodLocationId
-                    ? (result.levelNumber >= 6
-                        ? GameProgress.neighborhoodCleanBg
-                        : GameProgress.neighborhoodTrashBg)
-                    : result.locationId == GameProgress.schoolLocationId
-                        ? (result.levelNumber >= 4
-                            ? GameProgress.schoolCleanBg
-                            : GameProgress.schoolTrashBg)
-                        : result.levelNumber >= 2
-                            ? GameProgress.parkCleanBg
-                            : GameProgress.parkTrashBg,
+            result.locationId == GameProgress.townCenterLocationId
+                ? (result.levelNumber >= GameProgress.townCenterLevel10
+                    ? GameProgress.townCenterCleanBg
+                    : GameProgress.townCenterTrashBg)
+                : result.locationId == GameProgress.beachLocationId
+                    ? (result.levelNumber >= 8
+                        ? GameProgress.beachCleanBg
+                        : GameProgress.beachTrashBg)
+                    : result.locationId == GameProgress.neighborhoodLocationId
+                        ? (result.levelNumber >= 6
+                            ? GameProgress.neighborhoodCleanBg
+                            : GameProgress.neighborhoodTrashBg)
+                        : result.locationId == GameProgress.schoolLocationId
+                            ? (result.levelNumber >= 4
+                                ? GameProgress.schoolCleanBg
+                                : GameProgress.schoolTrashBg)
+                            : result.levelNumber >= 2
+                                ? GameProgress.parkCleanBg
+                                : GameProgress.parkTrashBg,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.none,
           ),
@@ -127,6 +145,19 @@ class _RewardCard extends StatelessWidget {
               ],
             ),
           ),
+          if (result.isReplay) ...<Widget>[
+            SizedBox(height: compact ? 6 : 8),
+            Text(
+              'Replay — rewards already claimed',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Jersey10',
+                fontSize: compact ? 16 : 20,
+                height: 1.1,
+                color: const Color(0xFF9FE6A0),
+              ),
+            ),
+          ],
           SizedBox(height: compact ? 8 : 12),
           _StarRow(stars: result.stars, compact: compact),
           SizedBox(height: compact ? 12 : 18),
@@ -192,9 +223,14 @@ class _RewardCard extends StatelessWidget {
                       ? const Color(0xFF29B6F6)
                       : result.levelNumber == GameProgress.beachLevel8
                           ? const Color(0xFF26A69A)
-                          : const Color(0xFFE53935),
+                          : result.levelNumber == GameProgress.townCenterLevel9
+                              ? const Color(0xFF5C6BC0)
+                              : const Color(0xFFE53935),
               label: result.rewardBadge!,
               compact: compact,
+              imageAsset: result.rewardBadgeId == null
+                  ? null
+                  : CosmeticItem.byId(result.rewardBadgeId!)?.imageAsset,
             ),
             _RewardLine(
               icon: Icons.monetization_on,
@@ -272,6 +308,14 @@ class _RewardCard extends StatelessWidget {
                             const BeachFullyRestoredScreen(),
                       ),
                     );
+                  }
+                } else if (result.locationId ==
+                    GameProgress.townCenterLocationId) {
+                  if (result.levelNumber == GameProgress.townCenterLevel9) {
+                    await SaveManager.instance.completeTownCenterLevel9(
+                      coinsEarned: result.coinsEarned,
+                    );
+                    if (context.mounted) Navigator.of(context).pop();
                   }
                 }
               },
@@ -360,20 +404,32 @@ class _RewardLine extends StatelessWidget {
     required this.color,
     required this.label,
     required this.compact,
+    this.imageAsset,
   });
 
   final IconData icon;
   final Color color;
   final String label;
   final bool compact;
+  final String? imageAsset;
 
   @override
   Widget build(BuildContext context) {
+    final double iconSize = compact ? 28 : 40;
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 4 : 6),
       child: Row(
         children: <Widget>[
-          Icon(icon, color: color, size: compact ? 20 : 24),
+          if (imageAsset != null)
+            Image.asset(
+              imageAsset!,
+              width: iconSize,
+              height: iconSize,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.none,
+            )
+          else
+            Icon(icon, color: color, size: compact ? 20 : 24),
           SizedBox(width: compact ? 8 : 10),
           Expanded(
             child: Text(

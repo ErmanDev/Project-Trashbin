@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_progress.dart';
+import '../services/audio_manager.dart';
 import '../services/save_manager.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/dialogue_box.dart';
@@ -114,7 +113,10 @@ class _SchoolFullyRestoredScreenState extends State<SchoolFullyRestoredScreen>
       _saved = true;
       await SaveManager.instance.completeSchoolLevel4();
     }
-    if (mounted) setState(() => _phase = _SchoolRestorePhase.banner);
+    if (mounted) {
+      setState(() => _phase = _SchoolRestorePhase.banner);
+      AudioManager.instance.playApplause();
+    }
   }
 
   void _onTap() {
@@ -242,52 +244,19 @@ class _SchoolFullyRestoredScreenState extends State<SchoolFullyRestoredScreen>
                       final double p =
                           _phase.index > _SchoolRestorePhase.life.index ? 1 : _life.value;
                       return IgnorePointer(
-                        child: Stack(
-                          children: <Widget>[
-                            if (p > 0.2)
-                              ...List<Widget>.generate(6, (int i) {
-                                return Positioned(
-                                  left: w * (0.1 + (i % 3) * 0.28),
-                                  top: h * (0.4 + (i ~/ 3) * 0.15),
-                                  child: Opacity(
-                                    opacity: ((p - 0.2) / 0.4).clamp(0.0, 1.0),
-                                    child: Text(
-                                      i.isEven ? '🌸' : '🌼',
-                                      style: TextStyle(
-                                        fontSize: compact ? 18 : 24,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            if (p > 0.55)
-                              Positioned(
-                                left: w * 0.2,
-                                bottom: h * 0.28,
-                                child: Opacity(
-                                  opacity: ((p - 0.55) / 0.3).clamp(0.0, 1.0),
-                                  child: Text(
-                                    '🧒👧',
-                                    style: TextStyle(
-                                      fontSize: compact ? 28 : 36,
-                                    ),
-                                  ),
-                                ),
+                        child: Opacity(
+                          opacity: (p * 0.4).clamp(0.0, 0.4),
+                          child: const DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                radius: 1.1,
+                                colors: <Color>[
+                                  Color(0x6600897B),
+                                  Colors.transparent,
+                                ],
                               ),
-                            if (p > 0.75)
-                              ...List<Widget>.generate(5, (int i) {
-                                return Positioned(
-                                  left: w * 0.5 +
-                                      math.cos(i) * w * 0.25 -
-                                      10,
-                                  top: h * 0.5 + math.sin(i) * h * 0.1,
-                                  child: Opacity(
-                                    opacity: ((p - 0.75) / 0.25).clamp(0.0, 1.0),
-                                    child: const Text('👏', style: TextStyle(fontSize: 22)),
-                                  ),
-                                );
-                              }),
-                          ],
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -365,7 +334,7 @@ class _SchoolFullyRestoredScreenState extends State<SchoolFullyRestoredScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
                             Text(
-                              '🏫 School Restored!',
+                              'School Restored!',
                               style: TextStyle(
                                 fontFamily: 'Jersey10',
                                 fontSize: compact ? 32 : 44,
@@ -386,6 +355,8 @@ class _SchoolFullyRestoredScreenState extends State<SchoolFullyRestoredScreen>
                               'Badge',
                               GameProgress.scholarBadgeTitle,
                               compact,
+                              imageAsset:
+                                  'assets/images/png/badge_scholar_sorter.png',
                             ),
                             _line(
                               Icons.holiday_village,
@@ -422,13 +393,23 @@ class _SchoolFullyRestoredScreenState extends State<SchoolFullyRestoredScreen>
     Color color,
     String label,
     String value,
-    bool compact,
-  ) {
+    bool compact, {
+    String? imageAsset,
+  }) {
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 6 : 8),
       child: Row(
         children: <Widget>[
-          Icon(icon, color: color, size: compact ? 20 : 24),
+          if (imageAsset != null)
+            Image.asset(
+              imageAsset,
+              width: compact ? 28 : 36,
+              height: compact ? 28 : 36,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.none,
+            )
+          else
+            Icon(icon, color: color, size: compact ? 20 : 24),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
